@@ -125,7 +125,7 @@ main{flex:1;overflow-y:auto;padding:24px 28px}
 <script>
 // ── API EN VIVO ────────────────────────────────────────────────────────
 // Pega aquí la URL del Apps Script después de desplegarlo
-const LIVE_API_URL = '';  // ← reemplazar con tu URL de Apps Script
+const LIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzumgZtjjKp9XRA9rJcz2lWrRDt4XgpDgabJxT6iXHmfkJuVTjj4yvlK2vMckT4V0pNBw/exec';
 
 let liveData = null;
 let lastFetch = null;
@@ -882,49 +882,45 @@ function updateRoasSummary(id,inv,k){
 // ── CUADRE EL REY GENERAL ─────────────────────────────────────────────
 const EL_REY_CUADRE = {
   mes: 'Jun 26',
-  fechaCorte: '10/06/2026',
-  diasLaborados: 9,
+  fechaCorte: '11/06/2026',
+  diasLaborados: 3,
   diasMes: 30,
   sedes: [
-    {name:'Cerritos', actual_u:9,  actual_v:12940000,  meta_u:87, meta_v:273000000, color:'#ffa657'},
-    {name:'Cartago',  actual_u:0,  actual_v:0,          meta_u:92, meta_v:276000000, color:'#58a6ff'},
-    {name:'Jamundí',  actual_u:0,  actual_v:0,          meta_u:43, meta_v:117000000, color:'#d2a8ff'},
+    {name:'Cerritos', actual_u:31, actual_v:40023000, meta_u:87, meta_v:273000000, color:'#ffa657'},
+    {name:'Cartago',  actual_u:0,  actual_v:0,         meta_u:92, meta_v:276000000, color:'#58a6ff'},
+    {name:'Jamundí',  actual_u:0,  actual_v:0,         meta_u:43, meta_v:117000000, color:'#d2a8ff'},
   ],
   asesores: [
-    {name:'Eduardo',      actual_u:9, actual_v:12940000, meta_v:144000000},
-    {name:'Juan Gabriel', actual_u:0, actual_v:0,         meta_v:276000000},
-    {name:'Nicol',        actual_u:0, actual_v:0,         meta_v:129000000},
-    {name:'Sara Giraldo', actual_u:0, actual_v:0,         meta_v:117000000},
-    {name:'Ronal',        actual_u:0, actual_v:0,         meta_v:0},
+    {name:'Eduardo',      actual_u:16, actual_v:20294000, meta_v:144000000},
+    {name:'Nicol',        actual_u:12, actual_v:16005000, meta_v:129000000},
+    {name:'Natalia',      actual_u:3,  actual_v:3724000,  meta_v:0},
+    {name:'Juan Gabriel', actual_u:0,  actual_v:0,        meta_v:276000000},
+    {name:'Sara Giraldo', actual_u:0,  actual_v:0,        meta_v:117000000},
+    {name:'Ronal',        actual_u:0,  actual_v:0,        meta_v:0},
   ],
   productos: [
-    {name:'Gran Duque',          u:9, v:12940000},
-    {name:'Emperador',           u:0, v:0},
-    {name:'Base Cama',           u:0, v:0},
-    {name:'Espaldar',            u:0, v:0},
-    {name:'Sala Boston',         u:0, v:0},
-    {name:'Sala Venecia',        u:0, v:0},
-    {name:'Comedor Flor Morado', u:0, v:0},
-    {name:'Sala Roma',           u:0, v:0},
-    {name:'Imperio',             u:0, v:0},
+    {name:'Gran Duque',    u:25, v:33388000},
+    {name:'Imperio',       u:4,  v:5215000},
+    {name:'Base Cama',     u:1,  v:420000},
+    {name:'Pillow Confort',u:1,  v:1000000},
   ],
   pagos: [
-    {name:'Contra Entrega', v:8160000},
-    {name:'BOLD',           v:3290000},
+    {name:'Contra Entrega', v:11850000},
+    {name:'BOLD',           v:7568000},
+    {name:'Efectivo',       v:6500000},
+    {name:'BBIA AH',        v:4740000},
+    {name:'ADDI',           v:3395000},
+    {name:'BBIA CTE',       v:3180000},
     {name:'Bancolombia',    v:1490000},
-    {name:'Efectivo',       v:0},
-    {name:'Transferencia',  v:0},
-    {name:'Davivienda',     v:0},
-    {name:'ADDI',           v:0},
-    {name:'Sistecredito',   v:0},
+    {name:'Sistecredito',   v:1300000},
   ],
-  proyeccion_u: 270,
-  proyeccion_v: 43133333,
-  promedioDiario_v: 1437778,
-  // Ventas diarias confirmadas (Junio tab)
+  proyeccion_u: 310,
+  proyeccion_v: 400230000,
+  promedioDiario_v: 13341000,
   diario: [
-    {fecha:'09/06',ventas:7,precio:9960000,recaudo:2390000},
-    {fecha:'10/06',ventas:2,precio:2980000,recaudo:0,pendiente:1490000},
+    {fecha:'09/06',ventas:7, precio:9960000, recaudo:9960000,  pendiente:0},
+    {fecha:'10/06',ventas:13,precio:14814000,recaudo:14814000, pendiente:0},
+    {fecha:'11/06',ventas:11,precio:15249000,recaudo:15249000, pendiente:0},
   ],
 };
 
