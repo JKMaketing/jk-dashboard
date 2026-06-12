@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Ventas · JK Marketing</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2330;--surface3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;--muted2:#6e7681;
+  --green:#3fb950;--red:#f78166;--yellow:#e3b341;--blue:#58a6ff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;min-height:100vh}
+#app{display:flex;min-height:100vh}
+aside{width:224px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0}
+main{flex:1;overflow-y:auto;padding:24px 28px}
+.brand{padding:0 16px 16px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.brand h1{font-size:14px;font-weight:700}
+.brand p{font-size:11px;color:var(--muted);margin-top:2px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;border-left:2px solid transparent;transition:all .15s;color:var(--muted);font-size:13px;font-weight:500}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{color:var(--text);border-left-color:var(--accent,#58a6ff);background:var(--surface2)}
+.nav-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.nav-sep{height:1px;background:var(--border);margin:8px 16px}
+.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted2);padding:8px 16px 4px}
+/* Overview */
+.overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:24px}
+.ov-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;cursor:pointer;transition:border-color .2s,transform .15s}
+.ov-card:hover{border-color:var(--chex);transform:translateY(-1px)}
+.ov-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.ov-dot{width:8px;height:8px;border-radius:50%}
+.ov-name{font-weight:600;font-size:13px}
+.ov-sector{font-size:11px;color:var(--muted);margin-left:auto}
+.ov-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.ov-stat-v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.ov-stat-l{font-size:10px;color:var(--muted);margin-top:1px}
+/* Page */
+.page-header{margin-bottom:20px}
+.page-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.page-title h2{font-size:20px;font-weight:700}
+.badge{font-size:11px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 8px}
+.page-note{margin-top:8px;font-size:11px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;line-height:1.5}
+.est-note{margin-top:6px;font-size:11px;color:var(--yellow);background:#e3b34112;border:1px solid #e3b34133;border-radius:6px;padding:6px 12px}
+/* Date filter */
+.date-filter{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.date-filter label{font-size:11px;color:var(--muted);white-space:nowrap}
+.date-filter select,.date-filter input[type="date"]{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;outline:none;cursor:pointer;transition:border-color .15s;color-scheme:dark}
+.date-filter select:focus,.date-filter input[type="date"]:focus{border-color:var(--accent,#58a6ff)}
+.date-filter-pair{display:flex;align-items:center;gap:8px}
+.filter-stats{font-size:11px;color:var(--muted);margin-left:auto}
+.btn-reset{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 10px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s}
+.btn-reset:hover{background:var(--surface2);color:var(--text)}
+/* KPIs */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}
+.kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:4px}
+.kpi-value{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
+/* ROAS */
+.roas-panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:20px}
+.roas-panel h3{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:12px}
+.roas-inner{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
+.roas-field{display:flex;flex-direction:column;gap:4px}
+.roas-field label{font-size:11px;color:var(--muted)}
+.roas-field input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;width:170px;outline:none;transition:border-color .15s}
+.roas-field input:focus{border-color:var(--accent,#58a6ff)}
+.roas-results{display:flex;gap:10px;flex-wrap:wrap}
+.roas-stat{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;min-width:110px}
+.roas-stat-v{font-size:18px;font-weight:700}
+.roas-stat-l{font-size:10px;color:var(--muted);margin-top:2px}
+/* Charts */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+@media(max-width:900px){.charts-row{grid-template-columns:1fr}}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px}
+.chart-card h3{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:14px}
+.chart-wrap{position:relative;height:240px}
+/* Table */
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:20px}
+.table-card h3{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);padding:14px 16px;border-bottom:1px solid var(--border)}
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{text-align:left;padding:9px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);background:var(--surface2);font-weight:600;white-space:nowrap}
+.data-table td{padding:9px 12px;border-top:1px solid var(--border);font-variant-numeric:tabular-nums;font-size:12px}
+.data-table tr:hover td{background:var(--surface2)}
+.data-table .num{text-align:right}
+.data-table tfoot tr td{background:var(--surface2);font-weight:700;border-top:2px solid var(--border)}
+.row-est td{color:var(--yellow)!important;opacity:.75}
+/* Canal bars */
+.canal-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:20px}
+.canal-card h3{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:14px}
+.canal-bars{display:flex;flex-direction:column;gap:10px}
+.canal-row{display:flex;align-items:center;gap:10px}
+.canal-name{width:160px;font-size:12px;flex-shrink:0}
+.canal-track{flex:1;height:8px;background:var(--surface3);border-radius:4px;overflow:hidden}
+.canal-fill{height:100%;border-radius:4px}
+.canal-val{font-size:12px;font-variant-numeric:tabular-nums;width:40px;text-align:right;flex-shrink:0;color:var(--muted)}
+.section-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted2);margin-bottom:12px}
+@media(max-width:700px){aside{display:none}main{padding:16px}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside>
+  <div class="brand">
+    <h1>JK Marketing</h1>
+    <p>Dashboard de Ventas</p>
+    <div id="live-badge" style="font-size:10px;color:var(--muted);margin-top:5px"></div>
+    <button onclick="fetchLiveData()" style="margin-top:6px;background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;color:var(--muted);font-size:10px;cursor:pointer;width:100%">↺ Actualizar datos</button>
+  </div>
+  <span class="nav-label">General</span>
+  <div class="nav-item" id="nav-overview" onclick="showOverview()"><span>📊</span> Resumen general</div>
+  <div class="nav-sep"></div>
+  <span class="nav-label">El Rey</span>
+  <div class="nav-item" id="nav-elrey" onclick="showElReyGeneral()" style="--accent:#ffa657">
+    <span class="nav-dot" style="background:#ffa657"></span>Cuadre El Rey General
+  </div>
+  <div class="nav-sep"></div>
+  <span class="nav-label">Clientes</span>
+  <div id="sidebar-clients"></div>
+</aside>
+<main id="main"></main>
+</div>
+
+<script>
+// ── API EN VIVO ────────────────────────────────────────────────────────
+// Pega aquí la URL del Apps Script después de desplegarlo
+const LIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzumgZtjjKp9XRA9rJcz2lWrRDt4XgpDgabJxT6iXHmfkJuVTjj4yvlK2vMckT4V0pNBw/exec';
+
+let liveData = null;
+let lastFetch = null;
+let fetchState = 'idle'; // 'idle' | 'loading' | 'ok' | 'error'
+
+async function fetchLiveData(silent = false) {
+  if (!LIVE_API_URL) return;
+  fetchState = 'loading';
+  updateLiveBadge();
+  try {
+    const res = await fetch(LIVE_API_URL, { cache: 'no-store' });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'API error');
+    liveData = json;
+    lastFetch = new Date();
+    fetchState = 'ok';
+    // Merge live data into El Rey cuadre
+    if (json.elrey) mergeLiveElRey(json.elrey);
+    if (json.lili_jun26) mergeLiveLili(json.lili_jun26);
+    if (!silent) reRenderCurrent();
+  } catch (e) {
+    fetchState = 'error';
+    console.warn('Live data fetch failed:', e);
+  }
+  updateLiveBadge();
+}
+
+function mergeLiveElRey(data) {
+  const d = EL_REY_CUADRE;
+  // Proyección
+  if (data.proyeccion) {
+    const p = data.proyeccion;
+    if (p.diasLaborados)  d.diasLaborados     = p.diasLaborados;
+    if (p.proyVentas)     d.proyeccion_u      = p.proyVentas;
+    if (p.proyRecaudo)    d.proyeccion_v      = p.proyRecaudo;
+    if (p.promedioDiario) d.promedioDiario_v  = p.promedioDiario;
+    if (p.fechaCorte)     d.fechaCorte        = p.fechaCorte;
+  }
+  // Sedes actuales
+  if (data.sedes_actual && data.sedes_actual.length) {
+    data.sedes_actual.forEach(s => {
+      const sede = d.sedes.find(x => x.name.toUpperCase() === String(s.name).toUpperCase());
+      if (sede) { sede.actual_u = s.cantidad; sede.actual_v = s.valor; }
+    });
+  }
+  // Metas de sedes (desde Informe_Mes)
+  if (data.metas_sedes && data.metas_sedes.length) {
+    data.metas_sedes.forEach(s => {
+      const sede = d.sedes.find(x => x.name.toUpperCase() === String(s.name).toUpperCase());
+      if (sede) { sede.meta_u = s.meta_u; sede.meta_v = s.meta_v; }
+    });
+  }
+  // Asesores actuales
+  if (data.asesores_actual && data.asesores_actual.length) {
+    data.asesores_actual.forEach(a => {
+      const asesor = d.asesores.find(x => x.name.toUpperCase() === String(a.name).toUpperCase());
+      if (asesor) { asesor.actual_u = a.cantidad; asesor.actual_v = a.valor; }
+    });
+  }
+  // Metas de asesores
+  if (data.metas_asesores && data.metas_asesores.length) {
+    data.metas_asesores.forEach(a => {
+      const asesor = d.asesores.find(x => x.name.toUpperCase() === String(a.name).toUpperCase());
+      if (asesor) asesor.meta_v = a.meta;
+    });
+  }
+  // Productos
+  if (data.productos && data.productos.length) {
+    d.productos = data.productos.map(p => ({ name: p.name, u: p.cantidad, v: p.valor }));
+  }
+  // Formas de pago
+  if (data.pagos && data.pagos.length) {
+    d.pagos = data.pagos.map(p => ({ name: p.name, v: p.valor }));
+  }
+  // Diario
+  if (data.diario && data.diario.length) {
+    d.diario = data.diario;
+  }
+}
+
+function mergeLiveLili(tabs) {
+  // tabs es array: [{tab:'Jun 26', contactos, cotizaciones, ventas, valor}, ...]
+  tabs.forEach(t => {
+    const mes = t.tab; // e.g. "Jun 26"
+    const client = CLIENTS.find(c => c.id === 'lili');
+    if (!client) return;
+    const existing = client.data.find(d => d.mes === mes);
+    if (existing) {
+      existing.contactos   = t.contactos;
+      existing.cotizaciones= t.cotizaciones;
+      existing.ventas      = t.ventas;
+      existing.valor       = t.valor;
+    }
+  });
+}
+
+let currentView = { type: 'overview' };
+function reRenderCurrent() {
+  if (currentView.type === 'overview')      showOverview();
+  else if (currentView.type === 'client')   showClient(currentView.idx);
+  else if (currentView.type === 'elrey')    showElReyGeneral();
+}
+
+function updateLiveBadge() {
+  const el = document.getElementById('live-badge');
+  if (!el) return;
+  if (!LIVE_API_URL) {
+    el.innerHTML = '';
+    return;
+  }
+  const icons = { idle:'⚪', loading:'🔄', ok:'🟢', error:'🔴' };
+  const labels = { idle:'', loading:' actualizando…', ok:' en vivo', error:' sin conexión' };
+  const t = lastFetch ? lastFetch.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}) : '';
+  el.innerHTML = `<span title="Última actualización: ${t || '—'}">${icons[fetchState]}${labels[fetchState]}${t?' · '+t:''}</span>`;
+}
+
+// ── DATOS REALES (verificados con TOTALES de Google Sheets) ───────────
+// ✓ = dato directo del TOTALES del archivo
+// ~ = dato estimado (archivo demasiado grande para leer en detalle)
+const CLIENTS = [
+  {
+    id:'lili', name:'Lili Valencia', sector:'Calzado · Eje Cafetero', color:'#58a6ff',
+    note:'18 meses confirmados. Ene 2025–May 2026: Formulario de Ventas histórico. Jun 2026 en adelante: KPI\'s Lili Valencia Online (parcial días 1–4).',
+    channels:[
+      {name:'WhatsApp',val:59,color:'#3fb950'},
+      {name:'Instagram DM',val:26,color:'#d2a8ff'},
+      {name:'Referidos / Directo',val:15,color:'#ffa657'}
+    ],
+    data:[
+      {mes:'Ene 25',contactos:393,cotizaciones:337,ventas:49,valor:8909476},
+      {mes:'Feb 25',contactos:590,cotizaciones:418,ventas:31,valor:8327774},
+      {mes:'Mar 25',contactos:718,cotizaciones:411,ventas:35,valor:9336445},
+      {mes:'Abr 25',contactos:625,cotizaciones:477,ventas:41,valor:12586257},
+      {mes:'May 25',contactos:1105,cotizaciones:808,ventas:76,valor:26728764},
+      {mes:'Jun 25',contactos:952,cotizaciones:699,ventas:69,valor:18046285},
+      {mes:'Jul 25',contactos:1572,cotizaciones:985,ventas:73,valor:18894891},
+      {mes:'Ago 25',contactos:1551,cotizaciones:1051,ventas:79,valor:26436620},
+      {mes:'Sep 25',contactos:1796,cotizaciones:1331,ventas:89,valor:29021875},
+      {mes:'Oct 25',contactos:2149,cotizaciones:1578,ventas:91,valor:31821580},
+      {mes:'Nov 25',contactos:2449,cotizaciones:1690,ventas:106,valor:35467695},
+      {mes:'Dic 25',contactos:3181,cotizaciones:2240,ventas:256,valor:80129605},
+      {mes:'Ene 26',contactos:1597,cotizaciones:862,ventas:86,valor:25565790},
+      {mes:'Feb 26',contactos:934,cotizaciones:601,ventas:48,valor:15732845},
+      {mes:'Mar 26',contactos:1770,cotizaciones:991,ventas:126,valor:41364745},
+      {mes:'Abr 26',contactos:1572,cotizaciones:797,ventas:103,valor:37109520},
+      {mes:'May 26',contactos:2162,cotizaciones:1262,ventas:157,valor:60306330},
+      {mes:'Jun 26',contactos:386,cotizaciones:208,ventas:20,valor:6482755,parcial:true},
+    ]
+  },
+  {
+    id:'dreamhair', name:'Dream Hair', sector:'Extensiones · E-commerce', color:'#f78166',
+    note:'Cliente desde May 2026. Registro por venta individual (sin formulario diario de contactos). May: 14 ventas confirmadas + 2 pendientes de entrega (no incluidas). Jun: 6 ventas días 1–2.',
+    channels:[
+      {name:'WhatsApp',val:45,color:'#3fb950'},
+      {name:'Página Web',val:36,color:'#58a6ff'},
+      {name:'Instagram',val:19,color:'#d2a8ff'}
+    ],
+    data:[
+      {mes:'May 26',contactos:0,cotizaciones:0,ventas:14,valor:2070000},               // ✓ 14 ventas confirmadas
+      {mes:'Jun 26',contactos:0,cotizaciones:0,ventas:6,valor:960000,parcial:true},    // ✓ días 1-2
+    ]
+  },
+  {
+    id:'jamundi', name:'Muebles Imperial · Jamundí', sector:'Muebles · Jamundí', color:'#d2a8ff',
+    note:'Datos desde Sep 2025. Todos los meses con TOTALES confirmados del archivo. Productos: sala, comedor, colchones y accesorios del hogar.',
+    channels:[
+      {name:'WhatsApp',val:70,color:'#3fb950'},
+      {name:'Facebook / Meta Ads',val:20,color:'#58a6ff'},
+      {name:'Referidos',val:10,color:'#ffa657'}
+    ],
+    data:[
+      {mes:'Sep 25',contactos:118,cotizaciones:76,ventas:8,valor:22870000},            // ✓
+      {mes:'Oct 25',contactos:463,cotizaciones:234,ventas:24,valor:38530000},          // ✓
+      {mes:'Nov 25',contactos:744,cotizaciones:459,ventas:25,valor:79390000},          // ✓
+      {mes:'Dic 25',contactos:635,cotizaciones:326,ventas:35,valor:49730000},          // ✓
+      {mes:'Ene 26',contactos:654,cotizaciones:554,ventas:36,valor:50800000},          // ✓
+      {mes:'Feb 26',contactos:348,cotizaciones:284,ventas:24,valor:28022000},          // ✓
+      {mes:'Mar 26',contactos:765,cotizaciones:551,ventas:37,valor:42749000},          // ✓
+      {mes:'Abr 26',contactos:578,cotizaciones:499,ventas:34,valor:39128000},          // ✓
+      {mes:'May 26',contactos:603,cotizaciones:494,ventas:48,valor:64510000},          // ✓
+      {mes:'Jun 26',contactos:72,cotizaciones:62,ventas:10,valor:9972000,parcial:true},// ✓ días 1-5
+    ]
+  },
+  {
+    id:'colchones-pereira', name:'Colchones El Rey Online', sector:'Colchones · Pereira', color:'#3fb950',
+    note:'Canal Online (WhatsApp). Abr–May 2026: estructura nueva con Ventas Digitales + Ventas en Local por separado. Mar 2026 sin datos registrados en el archivo.',
+    channels:[
+      {name:'Digital (WA / IG)',val:55,color:'#3fb950'},
+      {name:'En Local (presencial)',val:45,color:'#58a6ff'}
+    ],
+    canalChart:{
+      labels:['Abr 26','May 26','Jun 26'],
+      datasets:[
+        {label:'Digital (WA/IG)',data:[6540000,47000000,5930000],color:'#3fb950'},
+        {label:'En Local',data:[5020000,76608000,0],color:'#58a6ff'},
+      ]
+    },
+    data:[
+      {mes:'Sep 25',contactos:124,cotizaciones:44,ventas:7,valor:7375000},             // ✓
+      {mes:'Nov 25',contactos:0,cotizaciones:0,ventas:219,valor:271236000},            // ✓
+      {mes:'Dic 25',contactos:0,cotizaciones:0,ventas:52,valor:58370000},              // ✓
+      {mes:'Ene 26',contactos:121,cotizaciones:0,ventas:180,valor:238425000},          // ✓
+      {mes:'Feb 26',contactos:0,cotizaciones:0,ventas:103,valor:134992040},            // ✓
+      // Mar 2026: sin datos en archivo (hoja vacía)
+      {mes:'Abr 26',contactos:122,cotizaciones:26,ventas:6,valor:11560000},            // ✓ 6 digitales, sin locales ese mes
+      {mes:'May 26',contactos:593,cotizaciones:149,ventas:104,valor:123608000},        // ✓ 42 digital + 62 local
+      {mes:'Jun 26',contactos:57,cotizaciones:21,ventas:3,valor:5930000,parcial:true}, // ✓ días 1-3
+    ]
+  },
+  {
+    id:'cartago', name:'El Rey Cartago', sector:'Colchones & Muebles · Cartago', color:'#ffa657',
+    note:'2 canales combinados: COLC (Colchones) y MBL (Muebles). Todos los meses con TOTALES confirmados del archivo. COLC inicia operación formal en Ene 2026; MBL también desde Ene 2026. El registro de Sep 2025 fue un período compartido con otro canal — no se incluye aquí para evitar doble conteo.',
+    channels:[
+      {name:'COLC – Colchones',val:72,color:'#ffa657'},
+      {name:'MBL – Muebles',val:28,color:'#d2a8ff'}
+    ],
+    canalChart:{
+      labels:['Ene 26','Feb 26','Mar 26','Abr 26','May 26','Jun 26'],
+      datasets:[
+        {label:'COLC – Colchones',data:[85178000,82925000,84882500,101553000,86252000,2600000],color:'#ffa657'},
+        {label:'MBL – Muebles',data:[4650000,20540000,13700000,27200000,18130000,0],color:'#d2a8ff'},
+      ]
+    },
+    data:[
+      // Sep 25 removido: mismo registro que aparece en Colchones El Rey Online (doble conteo)
+      {mes:'Ene 26',contactos:390,cotizaciones:183,ventas:54,valor:89828000},          // ✓ COLC(334/164/52/$85.17M)+MBL(56/19/2/$4.65M)
+      {mes:'Feb 26',contactos:444,cotizaciones:245,ventas:73,valor:103465000},         // ✓ COLC(274/156/64/$82.92M)+MBL(170/89/9/$20.54M)
+      {mes:'Mar 26',contactos:253,cotizaciones:227,ventas:56,valor:98582500},          // ✓ COLC(251/225/52/$84.88M)+MBL(2/2/4/$13.70M)
+      {mes:'Abr 26',contactos:229,cotizaciones:190,ventas:82,valor:128753000},         // ✓ COLC(229/190/73/$101.55M)+MBL(0/0/9/$27.20M)
+      {mes:'May 26',contactos:209,cotizaciones:185,ventas:59,valor:104382000},         // ✓ COLC(209/185/54/$86.25M)+MBL(0/0/5/$18.13M)
+      {mes:'Jun 26',contactos:12,cotizaciones:10,ventas:2,valor:2600000,parcial:true}, // ✓ COLC solo, día 1
+    ]
+  },
+  {
+    id:'muebles-pereira', name:'Muebles El Rey Pereira', sector:'Muebles · Pereira', color:'#79c0ff',
+    note:'Datos desde Ene 2026. Todos los meses con TOTALES confirmados. Ene–Mar 2026 tenía columnas adicionales de Garantía y No Contesta.',
+    channels:[
+      {name:'WhatsApp',val:60,color:'#3fb950'},
+      {name:'Facebook / Meta Ads',val:30,color:'#58a6ff'},
+      {name:'Directo / Referido',val:10,color:'#ffa657'}
+    ],
+    data:[
+      {mes:'Ene 26',contactos:330,cotizaciones:218,ventas:12,valor:31585000},          // ✓
+      {mes:'Feb 26',contactos:190,cotizaciones:126,ventas:37,valor:81177000},          // ✓
+      {mes:'Mar 26',contactos:177,cotizaciones:77,ventas:7,valor:12290000},            // ✓
+      {mes:'Abr 26',contactos:301,cotizaciones:217,ventas:23,valor:65348000},          // ✓
+      {mes:'May 26',contactos:504,cotizaciones:337,ventas:28,valor:96998000},          // ✓
+      {mes:'Jun 26',contactos:53,cotizaciones:44,ventas:1,valor:11432000,parcial:true},// ✓ días 1-3
+    ]
+  },
+];
+
+// ── HELPERS ───────────────────────────────────────────────────────────
+const M  = n => '$'+Math.round(n).toLocaleString('es-CO');
+const Ms = n => n>=1e9?'$'+(n/1e9).toFixed(2)+'B':n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':M(n);
+const Nf = n => n.toLocaleString('es-CO');
+
+// Month index for ordering/filtering
+function mesIdx(m){
+  const order=['Ene 25','Feb 25','Mar 25','Abr 25','May 25','Jun 25','Jul 25','Ago 25','Sep 25','Oct 25','Nov 25','Dic 25',
+               'Ene 26','Feb 26','Mar 26','Abr 26','May 26','Jun 26','Jul 26','Ago 26','Sep 26','Oct 26','Nov 26','Dic 26'];
+  const i=order.indexOf(m);
+  return i>=0?i:999;
+}
+
+function getAllMonths(){
+  const set=new Set();
+  CLIENTS.forEach(c=>c.data.forEach(d=>set.add(d.mes)));
+  return [...set].sort((a,b)=>mesIdx(a)-mesIdx(b));
+}
+
+function calcKPIs(data){
+  const full=data.filter(d=>!d.parcial&&!d.est);
+  const tv=data.reduce((s,d)=>s+d.valor,0);
+  const tn=data.reduce((s,d)=>s+d.ventas,0);
+  const tc=data.reduce((s,d)=>s+d.contactos,0);
+  const tq=data.reduce((s,d)=>s+d.cotizaciones,0);
+  const ticket=tn>0?tv/tn:0;
+  const cierre=tc>0?tn/tc*100:0;
+  const src=full.length?full:data;
+  const best=src.length?src.reduce((a,b)=>a.valor>b.valor?a:b,src[0]):null;
+  const last=data[data.length-1];
+  const prev=data[data.length-2];
+  const mom=(prev&&prev.valor>0&&!last.parcial&&!last.est)?(last.valor-prev.valor)/prev.valor*100:null;
+  return{tv,tn,tc,tq,ticket,cierre,best,last,mom};
+}
+
+function getMonthInv(id,mes){return parseFloat(localStorage.getItem('inv_'+id+'_'+mes)||'0')}
+function setMonthInv(id,mes,v){localStorage.setItem('inv_'+id+'_'+mes,v)}
+function getTotalInv(id,data){return data.reduce((s,d)=>s+getMonthInv(id,d.mes),0)}
+// backward compat for overview
+function getInv(id){return getTotalInv(id,CLIENTS.find(c=>c.id===id)?.data||[])}
+
+let _charts=[];
+function killCharts(){_charts.forEach(c=>{try{c.destroy()}catch(e){}});_charts=[]}
+function reg(c){_charts.push(c);return c}
+const G={
+  x:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}},
+  y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}}
+};
+
+// ── SIDEBAR ───────────────────────────────────────────────────────────
+function buildSidebar(){
+  document.getElementById('sidebar-clients').innerHTML=CLIENTS.map((c,i)=>`
+    <div class="nav-item" id="nav-${c.id}" onclick="showClient(${i})" style="--accent:${c.color}">
+      <span class="nav-dot" style="background:${c.color}"></span>${c.name}
+    </div>`).join('');
+}
+function setNav(id){
+  document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));
+  const el=document.getElementById('nav-'+id);
+  if(el) el.classList.add('active');
+  else {const ov=document.getElementById('nav-overview');if(ov)ov.classList.add('active');}
+}
+
+// ── OVERVIEW ──────────────────────────────────────────────────────────
+function showOverview(){
+  currentView={type:'overview'};
+  killCharts();
+  document.getElementById('nav-overview').classList.add('active');
+  document.querySelectorAll('.nav-item:not(#nav-overview)').forEach(e=>e.classList.remove('active'));
+  const allMonths=getAllMonths();
+  document.getElementById('main').innerHTML=`
+    <div class="page-header">
+      <div class="page-title"><h2>Resumen general</h2><span class="badge">Todos los clientes · Jun 2026</span></div>
+    </div>
+    <div class="section-title" style="margin-bottom:14px">Ventas acumuladas por cliente</div>
+    <div class="overview-grid">
+      ${CLIENTS.map((c,i)=>{
+        const k=calcKPIs(c.data);
+        const inv=getInv(c.id);
+        const roas=inv>0?(k.tv/inv).toFixed(2):null;
+        return`<div class="ov-card" onclick="showClient(${i})" style="--chex:${c.color}">
+          <div class="ov-header">
+            <span class="ov-dot" style="background:${c.color}"></span>
+            <span class="ov-name">${c.name}</span>
+            <span class="ov-sector">${c.sector}</span>
+          </div>
+          <div class="ov-stats">
+            <div><div class="ov-stat-v" style="color:${c.color}">${Ms(k.tv)}</div><div class="ov-stat-l">Ventas totales</div></div>
+            <div><div class="ov-stat-v">${Nf(k.tn)}</div><div class="ov-stat-l">Transacciones</div></div>
+            <div><div class="ov-stat-v">${roas?'x'+roas:'—'}</div><div class="ov-stat-l">ROAS</div></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="section-title">Evolución mensual comparada (últimos 10 meses)</div>
+    <div class="chart-card">
+      <h3>Valor ventas mensuales por cliente (COP)</h3>
+      <div class="chart-wrap" style="height:320px"><canvas id="ovChart"></canvas></div>
+    </div>`;
+
+  reg(new Chart(document.getElementById('ovChart'),{
+    type:'line',
+    data:{
+      labels:allMonths,
+      datasets:CLIENTS.map(c=>({
+        label:c.name,
+        data:allMonths.map(m=>{const r=c.data.find(d=>d.mes===m);return r?r.valor:null}),
+        borderColor:c.color,backgroundColor:c.color+'18',
+        fill:false,tension:.35,pointRadius:3,spanGaps:true
+      }))
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#8b949e',font:{size:11},boxWidth:10}}},
+      scales:{x:G.x,y:{...G.y,ticks:{...G.y.ticks,callback:v=>Ms(v)}}}
+    }
+  }));
+}
+
+// ── DATE FILTER STATE ─────────────────────────────────────────────────
+let filterFrom='', filterTo='';
+
+// Map "Mes YY" → [YYYY-MM-01, YYYY-MM-DD_last]
+function mesToDateRange(mes){
+  const map={
+    'Ene 25':['2025-01-01','2025-01-31'],'Feb 25':['2025-02-01','2025-02-28'],
+    'Mar 25':['2025-03-01','2025-03-31'],'Abr 25':['2025-04-01','2025-04-30'],
+    'May 25':['2025-05-01','2025-05-31'],'Jun 25':['2025-06-01','2025-06-30'],
+    'Jul 25':['2025-07-01','2025-07-31'],'Ago 25':['2025-08-01','2025-08-31'],
+    'Sep 25':['2025-09-01','2025-09-30'],'Oct 25':['2025-10-01','2025-10-31'],
+    'Nov 25':['2025-11-01','2025-11-30'],'Dic 25':['2025-12-01','2025-12-31'],
+    'Ene 26':['2026-01-01','2026-01-31'],'Feb 26':['2026-02-01','2026-02-28'],
+    'Mar 26':['2026-03-01','2026-03-31'],'Abr 26':['2026-04-01','2026-04-30'],
+    'May 26':['2026-05-01','2026-05-31'],'Jun 26':['2026-06-01','2026-06-30'],
+    'Jul 26':['2026-07-01','2026-07-31'],'Ago 26':['2026-08-01','2026-08-31'],
+    'Sep 26':['2026-09-01','2026-09-30'],'Oct 26':['2026-10-01','2026-10-31'],
+    'Nov 26':['2026-11-01','2026-11-30'],'Dic 26':['2026-12-01','2026-12-31'],
+  };
+  return map[mes]||[null,null];
+}
+
+function getFilteredData(data){
+  if(!filterFrom&&!filterTo) return data;
+  return data.filter(d=>{
+    const [ms,me]=mesToDateRange(d.mes);
+    if(!ms) return true;
+    if(filterFrom&&me<filterFrom) return false;  // month ends before start
+    if(filterTo&&ms>filterTo)    return false;  // month starts after end
+    return true;
+  });
+}
+
+function buildDateFilter(clientData, clientColor){
+  const ranges=clientData.map(d=>mesToDateRange(d.mes));
+  const starts=ranges.map(r=>r[0]).filter(Boolean).sort();
+  const ends=ranges.map(r=>r[1]).filter(Boolean).sort();
+  const minDate=starts[0]||'2025-01-01';
+  const maxDate=ends[ends.length-1]||'2026-12-31';
+  const fromVal=filterFrom||minDate;
+  const toVal=filterTo||maxDate;
+  return`<div class="date-filter" style="--accent:${clientColor}">
+    <div class="date-filter-pair">
+      <label>Desde</label>
+      <input type="date" id="df-from" onchange="onFilter()" value="${fromVal}" min="${minDate}" max="${maxDate}">
+    </div>
+    <div class="date-filter-pair">
+      <label>Hasta</label>
+      <input type="date" id="df-to" onchange="onFilter()" value="${toVal}" min="${minDate}" max="${maxDate}">
+    </div>
+    <button class="btn-reset" onclick="resetFilter()">Mostrar todo</button>
+    <span class="filter-stats" id="filter-stats"></span>
+  </div>`;
+}
+
+let _activeClientIdx = 0;
+function onFilter(){
+  const from=document.getElementById('df-from');
+  const to=document.getElementById('df-to');
+  if(from&&to){
+    filterFrom=from.value;
+    filterTo=to.value;
+    refreshClientView(_activeClientIdx);
+  }
+}
+function resetFilter(){
+  filterFrom='';filterTo='';
+  refreshClientView(_activeClientIdx);
+}
+
+// ── CLIENT VIEW ───────────────────────────────────────────────────────
+function showClient(idx){
+  currentView={type:'client',idx};
+  filterFrom='';filterTo='';
+  _activeClientIdx=idx;
+  killCharts();
+  setNav(CLIENTS[idx].id);
+  renderClientView(idx);
+}
+
+function refreshClientView(idx){
+  killCharts();
+  renderClientView(idx);
+  // Restore date input values (template uses filterFrom/filterTo so already correct)
+  const f=document.getElementById('df-from');
+  const t=document.getElementById('df-to');
+  if(f&&filterFrom) f.value=filterFrom;
+  if(t&&filterTo)   t.value=filterTo;
+}
+
+function renderClientView(idx){
+  const c=CLIENTS[idx];
+  const allData=c.data;
+  const fdata=getFilteredData(allData);
+  const k=calcKPIs(fdata);
+  const hasEst=fdata.some(d=>d.est);
+  const estCount=fdata.filter(d=>d.est).length;
+  const confCount=fdata.length-estCount;
+
+  const momColor=k.mom===null?'var(--muted)':k.mom>=0?'var(--green)':'var(--red)';
+  const momTxt=k.mom===null?'—':(k.mom>=0?'▲':'▼')+Math.abs(k.mom).toFixed(1)+'%';
+  const cierreColor=k.cierre>15?'var(--green)':k.cierre>7?'var(--yellow)':'var(--red)';
+
+  document.getElementById('main').innerHTML=`
+    <div class="page-header">
+      <div class="page-title">
+        <span style="width:12px;height:12px;border-radius:50%;background:${c.color};display:inline-block;flex-shrink:0"></span>
+        <h2>${c.name}</h2>
+        <span class="badge">${c.sector}</span>
+      </div>
+      ${c.note?`<div class="page-note">ℹ️ ${c.note}</div>`:''}
+      ${hasEst?`<div class="est-note">⚠️ ${estCount} meses marcados como <strong>estimados</strong> (${confCount} meses con datos reales confirmados en el rango seleccionado).</div>`:''}
+    </div>
+
+    ${buildDateFilter(allData, c.color)}
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Ventas totales</div>
+        <div class="kpi-value" style="color:${c.color}">${Ms(k.tv)}</div>
+        <div class="kpi-sub">${M(k.tv)}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Nº Transacciones</div>
+        <div class="kpi-value">${Nf(k.tn)}</div>
+        <div class="kpi-sub">ventas cerradas</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Contactos totales</div>
+        <div class="kpi-value">${k.tc>0?Nf(k.tc):'Sin dato'}</div>
+        <div class="kpi-sub">${k.tq>0?Nf(k.tq)+' cotizaciones':''}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Ticket promedio</div>
+        <div class="kpi-value">${Ms(k.ticket)}</div>
+        <div class="kpi-sub">por venta</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Tasa de cierre</div>
+        <div class="kpi-value" style="color:${cierreColor}">${k.tc>0?k.cierre.toFixed(1)+'%':'—'}</div>
+        <div class="kpi-sub">ventas / contactos</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Mejor mes</div>
+        <div class="kpi-value" style="color:${c.color};font-size:15px">${k.best?k.best.mes:'—'}</div>
+        <div class="kpi-sub">${k.best?Ms(k.best.valor)+' '+((k.best.est)?'~':'✓'):''}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Último mes</div>
+        <div class="kpi-value" style="font-size:15px">${k.last?k.last.mes:'—'}${k.last?.parcial?' <span style="font-size:10px;color:var(--yellow)">parcial</span>':''}</div>
+        <div class="kpi-sub">${k.last?Ms(k.last.valor):''}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Var. vs mes ant.</div>
+        <div class="kpi-value" style="color:${momColor};font-size:18px">${momTxt}</div>
+        <div class="kpi-sub">crecimiento mensual</div>
+      </div>
+    </div>
+
+    <div class="roas-panel" style="--accent:${c.color}">
+      <h3>📈 Inversión en pauta & ROAS — resumen del período</h3>
+      <div class="roas-results" id="roas-results">
+        <div class="roas-stat"><div class="roas-stat-v" style="color:var(--muted)">—</div><div class="roas-stat-l">Ingresa inversión en la tabla</div></div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Valor ventas mensuales (COP)</h3>
+        <div class="chart-wrap"><canvas id="chartLine"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Contactos · Cotizaciones · Ventas</h3>
+        <div class="chart-wrap"><canvas id="chartBar"></canvas></div>
+      </div>
+    </div>
+
+    ${c.canalChart&&fdata.some(d=>c.canalChart.labels.includes(d.mes))?`
+    <div class="chart-card" style="margin-bottom:20px">
+      <h3>Desglose por canal — Valor ventas ($)</h3>
+      <div class="chart-wrap"><canvas id="chartCanal"></canvas></div>
+    </div>`:''}
+
+    <div class="canal-card">
+      <h3>Canal principal de ventas (distribución estimada)</h3>
+      <div class="canal-bars">
+        ${c.channels.map(ch=>`
+          <div class="canal-row">
+            <span class="canal-name">${ch.name}</span>
+            <div class="canal-track"><div class="canal-fill" style="width:${ch.val}%;background:${ch.color||c.color}"></div></div>
+            <span class="canal-val">${ch.val}%</span>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="table-card">
+      <h3>Detalle mensual — ${fdata.length} meses mostrados</h3>
+      <table class="data-table">
+        <thead><tr>
+          <th>Mes</th><th class="num">Contactos</th><th class="num">Cotizaciones</th>
+          <th class="num">Ventas</th><th class="num">Valor total</th>
+          <th class="num">Ticket prom.</th><th class="num">Cierre %</th>
+          <th class="num" style="color:var(--yellow)">Inversión pauta</th>
+          <th class="num" style="color:var(--yellow)">ROAS</th>
+        </tr></thead>
+        <tbody>
+          ${fdata.map(d=>{
+            const tkt=d.ventas>0?d.valor/d.ventas:0;
+            const cr=d.contactos>0?d.ventas/d.contactos*100:0;
+            const flag=d.parcial?'★':d.est?'~':'';
+            const cls=d.est?'row-est':'';
+            const inv=getMonthInv(c.id,d.mes);
+            const roas=inv>0?(d.valor/inv).toFixed(2):null;
+            const roasColor=roas===null?'var(--muted)':parseFloat(roas)>=4?'var(--green)':parseFloat(roas)>=2?'var(--yellow)':'var(--red)';
+            return`<tr class="${cls}">
+              <td style="${d.parcial?'color:var(--yellow)':''}">${d.mes}${flag?` <span style="font-size:10px;opacity:.7">${flag}</span>`:''}</td>
+              <td class="num">${d.contactos>0?Nf(d.contactos):'—'}</td>
+              <td class="num">${d.cotizaciones>0?Nf(d.cotizaciones):'—'}</td>
+              <td class="num">${Nf(d.ventas)}</td>
+              <td class="num">${M(d.valor)}</td>
+              <td class="num">${Ms(tkt)}</td>
+              <td class="num">${d.contactos>0?cr.toFixed(1)+'%':'—'}</td>
+              <td class="num">
+                <input class="inv-month-input" data-mes="${d.mes}" type="number"
+                  value="${inv||''}" placeholder="0" min="0" step="50000"
+                  style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;
+                         padding:4px 7px;color:var(--text);font-size:11px;width:110px;text-align:right;
+                         outline:none;font-variant-numeric:tabular-nums">
+              </td>
+              <td class="num" id="roas-${d.mes.replace(' ','_')}" style="color:${roasColor};font-weight:600">
+                ${roas!==null?'x'+roas:'—'}
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot><tr>
+          <td>TOTAL</td>
+          <td class="num">${k.tc>0?Nf(k.tc):'—'}</td>
+          <td class="num">${k.tq>0?Nf(k.tq):'—'}</td>
+          <td class="num">${Nf(k.tn)}</td>
+          <td class="num">${M(k.tv)}</td>
+          <td class="num">${Ms(k.ticket)}</td>
+          <td class="num">${k.tc>0?k.cierre.toFixed(1)+'%':'—'}</td>
+          <td class="num" id="inv-total-foot">—</td>
+          <td class="num" id="roas-total-foot">—</td>
+        </tr></tfoot>
+      </table>
+      <div style="padding:8px 16px;font-size:11px;color:var(--muted)">★ Mes parcial &nbsp;|&nbsp; ~ Dato estimado &nbsp;|&nbsp; Inversión: ingresa el gasto en pauta por mes para calcular ROAS</div>
+    </div>`;
+
+  // Wire per-month investment inputs
+  function recalcRoasSummary(){
+    const totalInv=getTotalInv(c.id,fdata);
+    // Update footer totals
+    const footInv=document.getElementById('inv-total-foot');
+    const footRoas=document.getElementById('roas-total-foot');
+    if(footInv) footInv.textContent=totalInv>0?M(totalInv):'—';
+    if(footRoas&&totalInv>0){
+      const r=(k.tv/totalInv).toFixed(2);
+      const col=parseFloat(r)>=4?'var(--green)':parseFloat(r)>=2?'var(--yellow)':'var(--red)';
+      footRoas.textContent='x'+r;
+      footRoas.style.color=col;
+    } else if(footRoas){ footRoas.textContent='—'; footRoas.style.color=''; }
+    // Update summary panel
+    updateRoasSummary(c.id,totalInv,k);
+  }
+  document.querySelectorAll('.inv-month-input').forEach(input=>{
+    input.addEventListener('input',()=>{
+      const mes=input.dataset.mes;
+      const v=parseFloat(input.value)||0;
+      setMonthInv(c.id,mes,v);
+      // Update this row's ROAS cell
+      const d=fdata.find(x=>x.mes===mes);
+      const cell=document.getElementById('roas-'+mes.replace(' ','_'));
+      if(cell&&d){
+        if(v>0){
+          const r=(d.valor/v).toFixed(2);
+          const col=parseFloat(r)>=4?'var(--green)':parseFloat(r)>=2?'var(--yellow)':'var(--red)';
+          cell.textContent='x'+r;
+          cell.style.color=col;
+        } else { cell.textContent='—'; cell.style.color=''; }
+      }
+      recalcRoasSummary();
+    });
+  });
+  recalcRoasSummary();
+
+  // Restore filter selects
+  const f=document.getElementById('df-from');
+  const t=document.getElementById('df-to');
+  const months=allData.map(d=>d.mes);
+  if(f&&filterFrom&&months.includes(filterFrom)) f.value=filterFrom;
+  if(t&&filterTo&&months.includes(filterTo)) t.value=filterTo;
+
+  // Stats label
+  const st=document.getElementById('filter-stats');
+  if(st){
+    const isFiltered=filterFrom||filterTo;
+    if(isFiltered){
+      const fmtD=s=>s?new Date(s+'T12:00:00').toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'2-digit'}):'';
+      st.textContent=`${fdata.length} de ${allData.length} meses · ${Ms(k.tv)} · ${fmtD(filterFrom)} → ${fmtD(filterTo)}`;
+    } else { st.textContent=''; }
+  }
+
+  // Line chart
+  const labels=fdata.map(d=>d.mes);
+  reg(new Chart(document.getElementById('chartLine'),{
+    type:'line',
+    data:{labels,datasets:[{
+      label:'Valor',
+      data:fdata.map(d=>d.valor),
+      borderColor:fdata.map(d=>d.est?c.color+'55':c.color),
+      backgroundColor:c.color+'20',fill:true,tension:.4,
+      pointRadius:4,
+      pointBackgroundColor:fdata.map(d=>d.parcial?c.color+'77':d.est?c.color+'55':c.color),
+      pointStyle:fdata.map(d=>d.parcial?'triangle':d.est?'rect':'circle'),
+      segment:{borderColor:ctx=>fdata[ctx.p1DataIndex]?.est?c.color+'55':c.color}
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#8b949e',font:{size:11},boxWidth:10}},
+        tooltip:{callbacks:{label:ctx=>' '+M(ctx.raw)+(fdata[ctx.dataIndex]?.est?' (est.)':'')}}},
+      scales:{x:G.x,y:{...G.y,ticks:{...G.y.ticks,callback:v=>Ms(v)}}}}
+  }));
+
+  reg(new Chart(document.getElementById('chartBar'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Contactos',data:fdata.map(d=>d.contactos),backgroundColor:fdata.map(d=>d.est?'#30363d55':'#30363d'),borderRadius:3},
+      {label:'Cotizaciones',data:fdata.map(d=>d.cotizaciones),backgroundColor:fdata.map(d=>d.est?'#388bfd22':'#388bfd44'),borderRadius:3},
+      {label:'Ventas',data:fdata.map(d=>d.ventas),backgroundColor:fdata.map(d=>d.est?c.color+'44':c.color+'bb'),borderRadius:3},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#8b949e',font:{size:11},boxWidth:10}}},
+      scales:{x:G.x,y:G.y}}
+  }));
+
+  if(c.canalChart&&document.getElementById('chartCanal')){
+    reg(new Chart(document.getElementById('chartCanal'),{
+      type:'bar',
+      data:{
+        labels:c.canalChart.labels,
+        datasets:c.canalChart.datasets.map(ds=>({
+          label:ds.label,data:ds.data,backgroundColor:ds.color+'cc',borderRadius:3
+        }))
+      },
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#8b949e',font:{size:11},boxWidth:10}}},
+        scales:{x:G.x,y:{...G.y,ticks:{...G.y.ticks,callback:v=>Ms(v)}}}}
+    }));
+  }
+}
+
+function updateRoasSummary(id,inv,k){
+  const el=document.getElementById('roas-results');
+  if(!el)return;
+  if(!inv||inv<=0){
+    el.innerHTML=`<div class="roas-stat"><div class="roas-stat-v" style="color:var(--muted)">—</div><div class="roas-stat-l">Ingresa inversión en la tabla ↓</div></div>`;
+    return;
+  }
+  const roas=k.tv/inv;
+  const cpv=k.tn>0?inv/k.tn:0;
+  const ganancia=k.tv-inv;
+  const roasColor=roas>=4?'var(--green)':roas>=2?'var(--yellow)':'var(--red)';
+  el.innerHTML=`
+    <div class="roas-stat">
+      <div class="roas-stat-v" style="color:${roasColor}">x${roas.toFixed(2)}</div>
+      <div class="roas-stat-l">ROAS total</div>
+    </div>
+    <div class="roas-stat">
+      <div class="roas-stat-v">${M(inv)}</div>
+      <div class="roas-stat-l">Total invertido</div>
+    </div>
+    <div class="roas-stat">
+      <div class="roas-stat-v" style="color:${ganancia>=0?'var(--green)':'var(--red)'}">${Ms(ganancia)}</div>
+      <div class="roas-stat-l">Ganancia neta</div>
+    </div>
+    <div class="roas-stat">
+      <div class="roas-stat-v">${Ms(cpv)}</div>
+      <div class="roas-stat-l">Costo por venta</div>
+    </div>`;
+}
+
+// ── CUADRE EL REY GENERAL ─────────────────────────────────────────────
+const EL_REY_CUADRE = {
+  mes: 'Jun 26',
+  fechaCorte: '11/06/2026',
+  diasLaborados: 3,
+  diasMes: 30,
+  sedes: [
+    {name:'Cerritos', actual_u:31, actual_v:40023000, meta_u:87, meta_v:273000000, color:'#ffa657'},
+    {name:'Cartago',  actual_u:0,  actual_v:0,         meta_u:92, meta_v:276000000, color:'#58a6ff'},
+    {name:'Jamundí',  actual_u:0,  actual_v:0,         meta_u:43, meta_v:117000000, color:'#d2a8ff'},
+  ],
+  asesores: [
+    {name:'Eduardo',      actual_u:16, actual_v:20294000, meta_v:144000000},
+    {name:'Nicol',        actual_u:12, actual_v:16005000, meta_v:129000000},
+    {name:'Natalia',      actual_u:3,  actual_v:3724000,  meta_v:0},
+    {name:'Juan Gabriel', actual_u:0,  actual_v:0,        meta_v:276000000},
+    {name:'Sara Giraldo', actual_u:0,  actual_v:0,        meta_v:117000000},
+    {name:'Ronal',        actual_u:0,  actual_v:0,        meta_v:0},
+  ],
+  productos: [
+    {name:'Gran Duque',    u:25, v:33388000},
+    {name:'Imperio',       u:4,  v:5215000},
+    {name:'Base Cama',     u:1,  v:420000},
+    {name:'Pillow Confort',u:1,  v:1000000},
+  ],
+  pagos: [
+    {name:'Contra Entrega', v:11850000},
+    {name:'BOLD',           v:7568000},
+    {name:'Efectivo',       v:6500000},
+    {name:'BBIA AH',        v:4740000},
+    {name:'ADDI',           v:3395000},
+    {name:'BBIA CTE',       v:3180000},
+    {name:'Bancolombia',    v:1490000},
+    {name:'Sistecredito',   v:1300000},
+  ],
+  proyeccion_u: 310,
+  proyeccion_v: 400230000,
+  promedioDiario_v: 13341000,
+  diario: [
+    {fecha:'09/06',ventas:7, precio:9960000, recaudo:9960000,  pendiente:0},
+    {fecha:'10/06',ventas:13,precio:14814000,recaudo:14814000, pendiente:0},
+    {fecha:'11/06',ventas:11,precio:15249000,recaudo:15249000, pendiente:0},
+  ],
+};
+
+function showElReyGeneral(){
+  currentView={type:'elrey'};
+  killCharts();
+  document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));
+  document.getElementById('nav-elrey').classList.add('active');
+
+  const d = EL_REY_CUADRE;
+  const totalActualU = d.sedes.reduce((s,x)=>s+x.actual_u,0);
+  const totalActualV = d.sedes.reduce((s,x)=>s+x.actual_v,0);
+  const totalMetaU   = d.sedes.reduce((s,x)=>s+x.meta_u,0);
+  const totalMetaV   = d.sedes.reduce((s,x)=>s+x.meta_v,0);
+  const pctU = totalMetaU>0 ? (totalActualU/totalMetaU*100) : 0;
+  const pctV = totalMetaV>0 ? (totalActualV/totalMetaV*100) : 0;
+  const pctDias = d.diasMes>0 ? (d.diasLaborados/d.diasMes*100) : 0;
+  const pctColor = v => v>=80?'var(--green)':v>=50?'var(--yellow)':'var(--red)';
+
+  function bar(pct, color){
+    const w = Math.min(pct,100).toFixed(1);
+    return `<div style="flex:1;height:8px;background:var(--surface3);border-radius:4px;overflow:hidden">
+      <div style="width:${w}%;height:100%;background:${color};border-radius:4px;transition:width .4s"></div>
+    </div>`;
+  }
+
+  const sedesHTML = d.sedes.map(s=>{
+    const pu = s.meta_u>0?(s.actual_u/s.meta_u*100):0;
+    const pv = s.meta_v>0?(s.actual_v/s.meta_v*100):0;
+    return `<tr>
+      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${s.color};margin-right:6px"></span>${s.name}</td>
+      <td class="num">${s.actual_u} / ${s.meta_u}</td>
+      <td style="min-width:120px">${bar(pu,s.color)}</td>
+      <td class="num" style="color:${pctColor(pu)}">${pu.toFixed(1)}%</td>
+      <td class="num">${Ms(s.actual_v)}</td>
+      <td class="num" style="color:var(--muted)">${Ms(s.meta_v)}</td>
+      <td class="num" style="color:${pctColor(pv)}">${pv.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+
+  const totSedeRow = `<tr>
+    <td><strong>TOTAL</strong></td>
+    <td class="num"><strong>${totalActualU} / ${totalMetaU}</strong></td>
+    <td>${bar(pctU,'#ffa657')}</td>
+    <td class="num" style="color:${pctColor(pctU)}"><strong>${pctU.toFixed(1)}%</strong></td>
+    <td class="num"><strong>${Ms(totalActualV)}</strong></td>
+    <td class="num" style="color:var(--muted)"><strong>${Ms(totalMetaV)}</strong></td>
+    <td class="num" style="color:${pctColor(pctV)}"><strong>${pctV.toFixed(1)}%</strong></td>
+  </tr>`;
+
+  const asesoresHTML = d.asesores.filter(a=>a.meta_v>0).map(a=>{
+    const pv = a.meta_v>0?(a.actual_v/a.meta_v*100):0;
+    return `<tr>
+      <td>${a.name}</td>
+      <td class="num">${a.actual_u} vtas</td>
+      <td style="min-width:140px">${bar(pv,'#ffa657')}</td>
+      <td class="num" style="color:${pctColor(pv)}">${pv.toFixed(1)}%</td>
+      <td class="num">${Ms(a.actual_v)}</td>
+      <td class="num" style="color:var(--muted)">${Ms(a.meta_v)}</td>
+    </tr>`;
+  }).join('');
+
+  const productosHTML = d.productos.filter(p=>p.u>0).map(p=>`
+    <tr><td>${p.name}</td><td class="num">${p.u}</td><td class="num">${Ms(p.v)}</td></tr>
+  `).join('') || `<tr><td colspan="3" style="text-align:center;color:var(--muted)">Sin ventas registradas aún</td></tr>`;
+
+  const totalPagos = d.pagos.reduce((s,p)=>s+p.v,0);
+  const pagosHTML = d.pagos.filter(p=>p.v>0).map(p=>{
+    const pp = totalPagos>0?(p.v/totalPagos*100):0;
+    return `<tr>
+      <td>${p.name}</td>
+      <td style="min-width:120px">${bar(pp,'#58a6ff')}</td>
+      <td class="num">${Ms(p.v)}</td>
+      <td class="num" style="color:var(--muted)">${pp.toFixed(1)}%</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--muted)">Sin recaudo registrado</td></tr>`;
+
+  const diarioHTML = d.diario.map(r=>`
+    <tr>
+      <td>${r.fecha}</td>
+      <td class="num">${r.ventas}</td>
+      <td class="num">${Ms(r.precio)}</td>
+      <td class="num" style="color:var(--green)">${Ms(r.recaudo)}</td>
+      <td class="num" style="color:${r.pendiente?'var(--yellow)':'var(--muted)'}">${r.pendiente?Ms(r.pendiente):'—'}</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('main').innerHTML=`
+    <div class="page-header">
+      <div class="page-title">
+        <span style="width:12px;height:12px;border-radius:50%;background:#ffa657;display:inline-block;flex-shrink:0"></span>
+        <h2>Cuadre El Rey General</h2>
+        <span class="badge">Junio 2026</span>
+        <span class="badge">Corte: ${d.fechaCorte}</span>
+      </div>
+      <div class="page-note">ℹ️ Datos de la pestaña <strong>Junio</strong> (ventas diarias) + <strong>Informe_Mes</strong> (metas por sede y asesor). Actualizado al ${d.fechaCorte} · ${d.diasLaborados} días laborados de ${d.diasMes}.</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Ventas actuales</div>
+        <div class="kpi-value" style="color:#ffa657">${totalActualU}</div>
+        <div class="kpi-sub">de ${totalMetaU} meta · <span style="color:${pctColor(pctU)}">${pctU.toFixed(1)}%</span></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Recaudo actual</div>
+        <div class="kpi-value" style="color:#ffa657">${Ms(totalActualV)}</div>
+        <div class="kpi-sub">meta ${Ms(totalMetaV)} · <span style="color:${pctColor(pctV)}">${pctV.toFixed(1)}%</span></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Días avanzados</div>
+        <div class="kpi-value">${d.diasLaborados}</div>
+        <div class="kpi-sub">de ${d.diasMes} · <span style="color:${pctColor(pctDias)}">${pctDias.toFixed(0)}%</span> del mes</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Promedio diario</div>
+        <div class="kpi-value">${Ms(d.promedioDiario_v)}</div>
+        <div class="kpi-sub">valor recaudado / día</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Proyección cierre</div>
+        <div class="kpi-value">${d.proyeccion_u} uds</div>
+        <div class="kpi-sub">${Ms(d.proyeccion_v)} estimado</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">% cumpl. meta valor</div>
+        <div class="kpi-value" style="color:${pctColor(d.proyeccion_v/totalMetaV*100)}">${(d.proyeccion_v/totalMetaV*100).toFixed(1)}%</div>
+        <div class="kpi-sub">proyección vs meta</div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <h3>Progreso por Sede — Ventas vs Meta</h3>
+      <table class="data-table">
+        <thead><tr>
+          <th>Sede</th><th class="num">Uds (actual/meta)</th><th>Avance</th><th class="num">% Uds</th>
+          <th class="num">Valor actual</th><th class="num">Meta valor</th><th class="num">% Valor</th>
+        </tr></thead>
+        <tbody>${sedesHTML}</tbody>
+        <tfoot>${totSedeRow}</tfoot>
+      </table>
+    </div>
+
+    <div class="table-card">
+      <h3>Progreso por Asesor — Valor vs Meta</h3>
+      <table class="data-table">
+        <thead><tr>
+          <th>Asesor</th><th class="num">Ventas</th><th>Avance</th><th class="num">% Meta</th>
+          <th class="num">Valor actual</th><th class="num">Meta valor</th>
+        </tr></thead>
+        <tbody>${asesoresHTML}</tbody>
+      </table>
+    </div>
+
+    <div class="charts-row">
+      <div class="table-card" style="margin-bottom:0">
+        <h3>Mix de Productos</h3>
+        <table class="data-table">
+          <thead><tr><th>Producto</th><th class="num">Uds</th><th class="num">Valor</th></tr></thead>
+          <tbody>${productosHTML}</tbody>
+        </table>
+      </div>
+      <div class="table-card" style="margin-bottom:0">
+        <h3>Formas de Pago — Recaudo</h3>
+        <table class="data-table">
+          <thead><tr><th>Método</th><th>Distribución</th><th class="num">Monto</th><th class="num">%</th></tr></thead>
+          <tbody>${pagosHTML}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="table-card" style="margin-top:14px">
+      <h3>Ventas Diarias — Detalle</h3>
+      <table class="data-table">
+        <thead><tr>
+          <th>Fecha</th><th class="num">Ventas</th><th class="num">Precio total</th>
+          <th class="num">Recaudado</th><th class="num">Pendiente</th>
+        </tr></thead>
+        <tbody>${diarioHTML}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+buildSidebar();
+showOverview();
+
+// Fetch live data on load, then every 5 minutes
+fetchLiveData(true);
+setInterval(() => fetchLiveData(true), 5 * 60 * 1000);
+</script>
+</body>
+</html>
