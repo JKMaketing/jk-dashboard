@@ -162,12 +162,33 @@ async function fetchLiveData(silent = false) {
     // Merge live data into El Rey cuadre
     if (json.elrey) mergeLiveElRey(json.elrey);
     if (json.lili_jun26) mergeLiveLili(json.lili_jun26);
+    if (json.jamundi) mergeLiveJamundi(json.jamundi);
     if (!silent) reRenderCurrent();
   } catch (e) {
     fetchState = 'error';
     console.warn('Live data fetch failed:', e);
   }
   updateLiveBadge();
+}
+
+function mergeLiveJamundi(data) {
+  const client = CLIENTS.find(c => c.id === 'jamundi');
+  if (!client || !data) return;
+  const { monthly, daily } = data;
+  if (monthly && monthly.mes) {
+    const existing = client.data.find(d => d.mes === monthly.mes);
+    if (existing) {
+      if (monthly.contactos)    existing.contactos    = monthly.contactos;
+      if (monthly.cotizaciones) existing.cotizaciones = monthly.cotizaciones;
+      if (monthly.ventas)       existing.ventas       = monthly.ventas;
+      if (monthly.valor)        existing.valor        = monthly.valor;
+      existing.parcial = true;
+    }
+  }
+  if (daily && daily.length && monthly && monthly.mes) {
+    if (!client.daily) client.daily = {};
+    client.daily[monthly.mes] = daily;
+  }
 }
 
 function mergeLiveElRey(data) {
@@ -352,7 +373,7 @@ const CLIENTS = [
       {mes:'Mar 26',contactos:765,cotizaciones:551,ventas:37,valor:42749000},          // ✓
       {mes:'Abr 26',contactos:578,cotizaciones:499,ventas:34,valor:39128000},          // ✓
       {mes:'May 26',contactos:603,cotizaciones:494,ventas:48,valor:64510000},          // ✓
-      {mes:'Jun 26',contactos:182,cotizaciones:159,ventas:19,valor:18234000,parcial:true},// ✓ días 1-10
+      {mes:'Jun 26',contactos:236,cotizaciones:184,ventas:24,valor:25884000,parcial:true},// ✓ días 1-12 · live
     ],
     daily:{
       'Jun 26':[
@@ -365,7 +386,9 @@ const CLIENTS = [
         {fecha:'07/06',contactos:2, cotizaciones:2, ventas:0,valor:0},
         {fecha:'08/06',contactos:13,cotizaciones:13,ventas:0,valor:0},
         {fecha:'09/06',contactos:43,cotizaciones:35,ventas:2,valor:1250000},
-        {fecha:'10/06',contactos:0, cotizaciones:0, ventas:2,valor:2150000},
+        {fecha:'10/06',contactos:27,cotizaciones:20,ventas:2,valor:2150000},
+        {fecha:'11/06',contactos:27,cotizaciones:25,ventas:2,valor:3600000},
+        {fecha:'12/06',contactos:0, cotizaciones:0, ventas:3,valor:4050000},
       ]
     }
   },

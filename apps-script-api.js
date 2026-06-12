@@ -19,6 +19,9 @@ const SHEETS = {
   liliKpis: {
     id: '1DQO1nI8ucA8eiEGPKtxCk0PfTBJC3PMWWC8Zu5AWqqk',
   },
+  jamundi: {
+    id: '1HRqhDS_63PWVutrRCHbEVEFtk0-n_r86ErlBMpAc0KE',
+  },
 };
 
 // ── Punto de entrada GET ───────────────────────────────────────────────
@@ -29,6 +32,7 @@ function doGet(e) {
       timestamp: new Date().toISOString(),
       elrey: getElReyData(),
       lili_jun26: getLiliKpisData(),
+      jamundi: getJamundiData(),
     };
     return respond(result);
   } catch (err) {
@@ -314,5 +318,108 @@ function getLiliKpisData() {
       ventas:       totV,
       valor:        totVal,
     }
+  };
+}
+
+// ── Jamundí Imperial ───────────────────────────────────────────────────
+function getJamundiData() {
+  const MES_MAP = {
+    1:'Ene',2:'Feb',3:'Mar',4:'Abr',5:'May',6:'Jun',
+    7:'Jul',8:'Ago',9:'Sep',10:'Oct',11:'Nov',12:'Dic'
+  };
+
+  const ss   = SpreadsheetApp.openById(SHEETS.jamundi.id);
+  const sh   = ss.getSheets()[0];
+  const rows = sh.getDataRange().getValues();
+
+  const dailyMap = {};
+  let mesLabel   = '';
+
+  function parseFecha(raw) {
+    if (raw instanceof Date) return raw;
+    const s = cleanStr(raw);
+    const p = s.split('/');
+    if (p.length === 3) return new Date(p[2], parseInt(p[1])-1, parseInt(p[0]));
+    return new Date(s);
+  }
+
+  // Lee bloques por asesor: FECHA | CONTACTOS [x] | COTIZACIONES [x] | VENTAS [x] | TOTAL [x]
+  for (let i = 0; i < rows.length; i++) {
+    const r  = rows[i];
+    const c0 = cleanStr(r[0]).toUpperCase();
+    const c1 = cleanStr(r[1]).toUpperCase();
+    const c2 = cleanStr(r[2]).toUpperCase();
+    const c3 = cleanStr(r[3]).toUpperCase();
+    if (c0 === 'FECHA' && c1.startsWith('CONTACTOS') && c2.startsWith('COTIZACIONES') && c3.startsWith('VENTAS')) {
+      for (let j = i + 1; j < rows.length; j++) {
+        const dr = rows[j];
+        if (!dr[0]) continue;
+        if (cleanStr(dr[0]).toUpperCase() === 'FECHA') break;
+        const dateObj = parseFecha(dr[0]);
+        if (isNaN(dateObj)) break;
+        const c   = cleanNum(dr[1]);
+        const q   = cleanNum(dr[2]);
+        const v   = cleanNum(dr[3]);
+        const val = cleanNum(dr[4]);
+        if (c === 0 && v === 0 && val === 0) continue;
+        const key = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'dd/MM');
+        if (!mesLabel) {
+          mesLabel = MES_MAP[dateObj.getMonth()+1] + ' ' + String(dateObj.getFullYear()).slice(2);
+        }
+        if (!dailyMap[key]) dailyMap[key] = {contactos:0,cotizaciones:0,ventas:0,valor:0};
+        dailyMap[key].contactos   += c;
+        dailyMap[key].cotizaciones += q;
+        dailyMap[key].ventas      += v;
+        dailyMap[key].valor       += val;
+      }
+    }
+  }
+
+  // Tabla consolidada (FECHA | TOTAL VENTAS | TOTAL VENTA...): captura ventas
+  // de días donde el asesor aún no registró su bloque diario
+  for (let i = 0; i < rows.length; i++) {
+    const r  = rows[i];
+    const c0 = cleanStr(r[0]).toUpperCase();
+    const c1 = cleanStr(r[1]).toUpperCase();
+    const c2 = cleanStr(r[2]).toUpperCase();
+    if (c0 === 'FECHA' && c1.includes('TOTAL') && c2.includes('TOTAL')) {
+      for (let j = i + 1; j < rows.length; j++) {
+        const dr = rows[j];
+        if (!dr[0]) continue;
+        const dateObj = parseFecha(dr[0]);
+        if (isNaN(dateObj)) break;
+        const v   = cleanNum(dr[1]);
+        const val = cleanNum(dr[2]);
+        if (v === 0 && val === 0) continue;
+        const key = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'dd/MM');
+        if (!mesLabel) {
+          mesLabel = MES_MAP[dateObj.getMonth()+1] + ' ' + String(dateObj.getFullYear()).slice(2);
+        }
+        if (!dailyMap[key]) dailyMap[key] = {contactos:0,cotizaciones:0,ventas:0,valor:0};
+        if (dailyMap[key].ventas === 0) {   // solo si el bloque asesor no lo cubrió
+          dailyMap[key].ventas += v;
+          dailyMap[key].valor  += val;
+        }
+      }
+      break;
+    }
+  }
+
+  const daily = Object.keys(dailyMap)
+    .sort((a,b) => {
+      const [da,ma] = a.split('/').map(Number);
+      const [db,mb] = b.split('/').map(Number);
+      return (ma*100+da) - (mb*100+db);
+    })
+    .map(f => ({ fecha:f, ...dailyMap[f] }));
+
+  const totC   = daily.reduce((s,r)=>s+r.contactos,0);
+  const totQ   = daily.reduce((s,r)=>s+r.cotizaciones,0);
+  const totV   = daily.reduce((s,r)=>s+r.ventas,0);
+  const totVal = daily.reduce((s,r)=>s+r.valor,0);
+
+  return {
+    daily,
+    monthly: { mes: mesLabel, contactos: totC, cotizaciones: totQ, ventas: totV, valor: totVal }
   };
 }
