@@ -132,6 +132,9 @@ main{flex:1;overflow-y:auto;padding:24px 28px}
   <div class="nav-item" id="nav-elrey" onclick="showElReyGeneral()" style="--accent:#ffa657">
     <span class="nav-dot" style="background:#ffa657"></span>Cuadre El Rey General
   </div>
+  <div class="nav-item" id="nav-ronal" onclick="showRonalCuadre()" style="--accent:#d2a8ff">
+    <span class="nav-dot" style="background:#d2a8ff"></span>Cuadre Ronal
+  </div>
   <div class="nav-sep"></div>
   <span class="nav-label">Clientes</span>
   <div id="sidebar-clients"></div>
@@ -174,7 +177,10 @@ async function fetchLiveData(silent = false) {
 function mergeLiveJamundi(data) {
   const client = CLIENTS.find(c => c.id === 'jamundi');
   if (!client || !data) return;
-  const { monthly, daily } = data;
+  const { monthly, daily, asesores_mkt, asesores_actual, metas_asesores,
+          proyeccion, diario_ventas, productos, pagos, sedes_actual, metas_sedes } = data;
+
+  // Actualiza mensual del cliente
   if (monthly && monthly.mes) {
     const existing = client.data.find(d => d.mes === monthly.mes);
     if (existing) {
@@ -185,10 +191,67 @@ function mergeLiveJamundi(data) {
       existing.parcial = true;
     }
   }
+  // Daily agregado para tabla de detalle
   if (daily && daily.length && monthly && monthly.mes) {
     if (!client.daily) client.daily = {};
     client.daily[monthly.mes] = daily;
   }
+  // Daily por asesor para detalle Marketing en ficha
+  if (asesores_mkt && asesores_mkt.length && monthly && monthly.mes) {
+    if (!client.asesores_daily) client.asesores_daily = {};
+    client.asesores_daily[monthly.mes] = asesores_mkt;
+  }
+
+  // Actualiza RONAL_CUADRE con datos vivos
+  const d = RONAL_CUADRE;
+  if (proyeccion) {
+    if (proyeccion.diasLaborados)  d.diasLaborados    = proyeccion.diasLaborados;
+    if (proyeccion.proyVentas)     d.proyeccion_u     = proyeccion.proyVentas;
+    if (proyeccion.proyRecaudo)    d.proyeccion_v     = proyeccion.proyRecaudo;
+    if (proyeccion.promedioDiario) d.promedioDiario_v = proyeccion.promedioDiario;
+  }
+  if (sedes_actual && sedes_actual.length) {
+    sedes_actual.forEach(s => {
+      const sede = d.sedes.find(x => x.name.toUpperCase() === String(s.name).toUpperCase());
+      if (sede) { sede.actual_u = s.cantidad; sede.actual_v = s.valor; }
+    });
+  }
+  if (metas_sedes && metas_sedes.length) {
+    metas_sedes.forEach(s => {
+      const sede = d.sedes.find(x => x.name.toUpperCase() === String(s.name).toUpperCase());
+      if (sede) { sede.meta_u = s.meta_u; sede.meta_v = s.meta_v; }
+    });
+  }
+  if (asesores_actual && asesores_actual.length) {
+    asesores_actual.forEach(a => {
+      const asesor = d.asesores.find(x => x.name.toUpperCase() === String(a.name).toUpperCase());
+      if (asesor) { asesor.actual_u = a.cantidad; asesor.actual_v = a.valor; }
+    });
+  }
+  if (metas_asesores && metas_asesores.length) {
+    metas_asesores.forEach(a => {
+      const asesor = d.asesores.find(x => x.name.toUpperCase() === String(a.name).toUpperCase());
+      if (asesor) asesor.meta_v = a.meta;
+    });
+  }
+  if (asesores_mkt && asesores_mkt.length) {
+    asesores_mkt.forEach(a => {
+      const asesor = d.asesores.find(x => x.name.toUpperCase() === String(a.name).toUpperCase());
+      if (asesor) {
+        asesor.contactos    = a.contactos;
+        asesor.cotizaciones = a.cotizaciones;
+        asesor.ventas_mkt   = a.ventas;
+        asesor.valor_mkt    = a.valor;
+      }
+      if (a.daily && a.daily.length) d.asesores_daily[a.name] = a.daily;
+    });
+  }
+  if (productos && productos.length)
+    d.productos = productos.map(p => ({name:p.name, u:p.cantidad, v:p.valor}));
+  if (pagos && pagos.length)
+    d.pagos = pagos.map(p => ({name:p.name, v:p.valor}));
+  if (diario_ventas && diario_ventas.length)
+    d.diario = diario_ventas;
 }
 
 function mergeLiveElRey(data) {
@@ -277,6 +340,7 @@ function reRenderCurrent() {
   if (currentView.type === 'overview')      showOverview();
   else if (currentView.type === 'client')   showClient(currentView.idx);
   else if (currentView.type === 'elrey')    showElReyGeneral();
+  else if (currentView.type === 'ronal')    showRonalCuadre();
   else if (currentView.type === 'hoy')      showVentasHoy();
 }
 
@@ -389,6 +453,26 @@ const CLIENTS = [
         {fecha:'10/06',contactos:27,cotizaciones:20,ventas:2,valor:2150000},
         {fecha:'11/06',contactos:27,cotizaciones:25,ventas:2,valor:3600000},
         {fecha:'12/06',contactos:0, cotizaciones:0, ventas:3,valor:4050000},
+      ]
+    },
+    asesores_daily:{
+      'Jun 26':[
+        {name:'Eduardo', contactos:84, cotizaciones:0, ventas:6, valor:8160000, daily:[
+          {fecha:'09/06',contactos:84,cotizaciones:0,ventas:6,valor:8160000},
+        ]},
+        {name:'Sara Giraldo', contactos:236, cotizaciones:184, ventas:21, valor:21834000, daily:[
+          {fecha:'01/06',contactos:23,cotizaciones:18,ventas:4,valor:4170000},
+          {fecha:'02/06',contactos:25,cotizaciones:20,ventas:2,valor:2830000},
+          {fecha:'03/06',contactos:24,cotizaciones:24,ventas:1,valor:1000000},
+          {fecha:'04/06',contactos:9, cotizaciones:9, ventas:1,valor:170000},
+          {fecha:'05/06',contactos:23,cotizaciones:23,ventas:6,valor:6384000},
+          {fecha:'06/06',contactos:20,cotizaciones:15,ventas:1,valor:280000},
+          {fecha:'07/06',contactos:2, cotizaciones:2, ventas:0,valor:0},
+          {fecha:'08/06',contactos:13,cotizaciones:13,ventas:0,valor:0},
+          {fecha:'09/06',contactos:43,cotizaciones:35,ventas:2,valor:1250000},
+          {fecha:'10/06',contactos:27,cotizaciones:20,ventas:2,valor:2150000},
+          {fecha:'11/06',contactos:27,cotizaciones:25,ventas:2,valor:3600000},
+        ]},
       ]
     }
   },
@@ -897,6 +981,59 @@ function renderClientView(idx){
           </tr></tfoot>
         </table>
       </div>`;
+    })()}
+
+    ${(()=>{
+      // Detalle Marketing por asesor (solo si el cliente tiene asesores_daily)
+      const ad = c.asesores_daily;
+      if (!ad) return '';
+      // Recoger todos los meses filtrados que tengan data por asesor
+      const mesConDatos = fdata.map(d=>d.mes).find(m=>ad[m]&&ad[m].length>0);
+      if (!mesConDatos) return '';
+      const asesoresData = ad[mesConDatos];
+      const tabIds = asesoresData.map(a=>'adtab-'+c.id+'-'+a.name.replace(/ /g,'-'));
+      const tabNav = asesoresData.map((a,i)=>`
+        <button data-adtab="${c.id}-${a.name}" onclick="clientAsesorTab('${c.id}','${a.name}')"
+          style="background:${i===0?'var(--surface3)':'none'};border:1px solid var(--border);border-radius:5px;
+                 padding:4px 11px;color:${i===0?'var(--text)':'var(--muted)'};font-size:12px;cursor:pointer;margin-right:4px">
+          ${a.name}
+          <span style="color:var(--muted);font-size:10px;margin-left:4px">${a.contactos} contactos · ${a.ventas_mkt||a.ventas} vtas</span>
+        </button>`).join('');
+      const tabContent = asesoresData.map((a,i)=>{
+        const rows  = a.daily||[];
+        const totC  = rows.reduce((s,r)=>s+r.contactos,0);
+        const totQ  = rows.reduce((s,r)=>s+r.cotizaciones,0);
+        const totV  = rows.reduce((s,r)=>s+r.ventas,0);
+        const totVl = rows.reduce((s,r)=>s+r.valor,0);
+        return `<div id="adtab-${c.id}-${a.name.replace(/ /g,'-')}" style="display:${i===0?'block':'none'}">
+          <table class="data-table" style="margin-top:10px">
+            <thead><tr>
+              <th>Fecha</th><th class="num">Contactos</th><th class="num">Cotizaciones</th>
+              <th class="num">Ventas</th><th class="num">Valor</th><th class="num">Conv.%</th>
+            </tr></thead>
+            <tbody>${rows.map(r=>`<tr>
+              <td><strong>${r.fecha}</strong></td>
+              <td class="num">${r.contactos||'—'}</td>
+              <td class="num">${r.cotizaciones||'—'}</td>
+              <td class="num" style="color:${c.color}">${r.ventas||'—'}</td>
+              <td class="num">${r.valor>0?M(r.valor):'—'}</td>
+              <td class="num" style="color:var(--muted)">${r.contactos>0?(r.ventas/r.contactos*100).toFixed(1)+'%':'—'}</td>
+            </tr>`).join('')}</tbody>
+            <tfoot><tr>
+              <td><strong>TOTAL</strong></td>
+              <td class="num"><strong>${totC}</strong></td>
+              <td class="num"><strong>${totQ}</strong></td>
+              <td class="num" style="color:${c.color}"><strong>${totV}</strong></td>
+              <td class="num"><strong>${M(totVl)}</strong></td>
+              <td class="num" style="color:var(--muted)"><strong>${totC>0?(totV/totC*100).toFixed(1)+'%':'—'}</strong></td>
+            </tr></tfoot>
+          </table></div>`;
+      }).join('');
+      return `<div class="table-card">
+        <h3>Marketing por Asesor — ${mesConDatos}</h3>
+        <div style="margin-bottom:8px">${tabNav}</div>
+        ${tabContent}
+      </div>`;
     })()}`;
 
   // Wire per-month investment inputs
@@ -1032,6 +1169,57 @@ function updateRoasSummary(id,inv,k){
 }
 
 // ── CUADRE EL REY GENERAL ─────────────────────────────────────────────
+const RONAL_CUADRE = {
+  mes: 'Jun 26',
+  fechaCorte: '12/06/2026',
+  diasLaborados: 10,
+  diasMes: 30,
+  sedes: [
+    {name:'Jamundí', actual_u:4, actual_v:6850000, meta_u:43, meta_v:117000000, color:'#d2a8ff'},
+  ],
+  asesores: [
+    {name:'Eduardo',      actual_u:0, actual_v:0,       meta_v:144000000, contactos:84,  cotizaciones:0,   ventas_mkt:6,  valor_mkt:8160000},
+    {name:'Nicol',        actual_u:0, actual_v:0,       meta_v:129000000, contactos:0,   cotizaciones:0,   ventas_mkt:0,  valor_mkt:0},
+    {name:'Juan Gabriel', actual_u:0, actual_v:0,       meta_v:276000000, contactos:0,   cotizaciones:0,   ventas_mkt:0,  valor_mkt:0},
+    {name:'Sara Giraldo', actual_u:1, actual_v:7650000, meta_v:117000000, contactos:236, cotizaciones:184, ventas_mkt:21, valor_mkt:21834000},
+    {name:'Ronal',        actual_u:0, actual_v:0,       meta_v:0,         contactos:0,   cotizaciones:0,   ventas_mkt:0,  valor_mkt:0},
+  ],
+  asesores_daily: {
+    'Eduardo': [
+      {fecha:'09/06',contactos:84,cotizaciones:0,ventas:6,valor:8160000},
+    ],
+    'Sara Giraldo': [
+      {fecha:'01/06',contactos:23,cotizaciones:18,ventas:4,valor:4170000},
+      {fecha:'02/06',contactos:25,cotizaciones:20,ventas:2,valor:2830000},
+      {fecha:'03/06',contactos:24,cotizaciones:24,ventas:1,valor:1000000},
+      {fecha:'04/06',contactos:9, cotizaciones:9, ventas:1,valor:170000},
+      {fecha:'05/06',contactos:23,cotizaciones:23,ventas:6,valor:6384000},
+      {fecha:'06/06',contactos:20,cotizaciones:15,ventas:1,valor:280000},
+      {fecha:'07/06',contactos:2, cotizaciones:2, ventas:0,valor:0},
+      {fecha:'08/06',contactos:13,cotizaciones:13,ventas:0,valor:0},
+      {fecha:'09/06',contactos:43,cotizaciones:35,ventas:2,valor:1250000},
+      {fecha:'10/06',contactos:27,cotizaciones:20,ventas:2,valor:2150000},
+      {fecha:'11/06',contactos:27,cotizaciones:25,ventas:2,valor:3600000},
+    ],
+  },
+  productos: [
+    {name:'Comedor Flor Morado', u:1, v:2300000},
+  ],
+  pagos: [
+    {name:'Efectivo',     v:3100000},
+    {name:'Transferencia',v:950000},
+    {name:'ADDI',         v:2800000},
+    {name:'Sistecredito', v:800000},
+  ],
+  proyeccion_u: 300,
+  proyeccion_v: 20550000,
+  promedioDiario_v: 685000,
+  diario: [
+    {fecha:'11/06',ventas:1,precio:2800000,recaudo:0,      pendiente:0},
+    {fecha:'12/06',ventas:3,precio:4050000,recaudo:500000, pendiente:500000},
+  ],
+};
+
 const EL_REY_CUADRE = {
   mes: 'Jun 26',
   fechaCorte: '11/06/2026',
@@ -1255,6 +1443,228 @@ function showElReyGeneral(){
       </table>
     </div>
   `;
+}
+
+// ── CUADRE RONAL ─────────────────────────────────────────────────────
+function showRonalCuadre(){
+  currentView={type:'ronal'};
+  killCharts();
+  document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));
+  document.getElementById('nav-ronal').classList.add('active');
+
+  const d = RONAL_CUADRE;
+  const totalActualU = d.sedes.reduce((s,x)=>s+x.actual_u,0);
+  const totalActualV = d.sedes.reduce((s,x)=>s+x.actual_v,0);
+  const totalMetaU   = d.sedes.reduce((s,x)=>s+x.meta_u,0);
+  const totalMetaV   = d.sedes.reduce((s,x)=>s+x.meta_v,0);
+  const pctU    = totalMetaU>0?(totalActualU/totalMetaU*100):0;
+  const pctV    = totalMetaV>0?(totalActualV/totalMetaV*100):0;
+  const pctDias = d.diasMes>0?(d.diasLaborados/d.diasMes*100):0;
+  const pctColor = v => v>=80?'var(--green)':v>=50?'var(--yellow)':'var(--red)';
+
+  function bar(pct,color){
+    const w=Math.min(pct,100).toFixed(1);
+    return `<div style="flex:1;height:8px;background:var(--surface3);border-radius:4px;overflow:hidden">
+      <div style="width:${w}%;height:100%;background:${color};border-radius:4px;transition:width .4s"></div>
+    </div>`;
+  }
+
+  // Asesores — ventas vs meta + KPIs marketing
+  const asesoresHTML = d.asesores.filter(a=>a.meta_v>0||a.actual_u>0||a.contactos>0).map(a=>{
+    const pv   = a.meta_v>0?(a.actual_v/a.meta_v*100):0;
+    const conv = a.contactos>0?(a.ventas_mkt/a.contactos*100).toFixed(1)+'%':'—';
+    return `<tr>
+      <td>${a.name}</td>
+      <td class="num">${a.actual_u} vtas</td>
+      <td style="min-width:130px">${bar(pv,'#d2a8ff')}</td>
+      <td class="num" style="color:${pctColor(pv)}">${pv.toFixed(1)}%</td>
+      <td class="num">${Ms(a.actual_v)}</td>
+      <td class="num" style="color:var(--muted)">${Ms(a.meta_v)}</td>
+      <td class="num" style="color:var(--muted)">${a.contactos||'—'}</td>
+      <td class="num" style="color:var(--muted)">${a.cotizaciones||'—'}</td>
+      <td class="num" style="color:var(--muted)">${conv}</td>
+    </tr>`;
+  }).join('');
+
+  // Marketing por asesor — tabs
+  const conDatos = Object.keys(d.asesores_daily).filter(n=>d.asesores_daily[n]&&d.asesores_daily[n].length>0);
+  const tabNav = conDatos.map((name,i)=>`
+    <button data-ronal-tab="${name}" onclick="ronalMktTab('${name}')"
+      style="background:${i===0?'var(--surface3)':'none'};border:1px solid var(--border);border-radius:5px;
+             padding:5px 12px;color:${i===0?'var(--text)':'var(--muted)'};font-size:12px;cursor:pointer;margin-right:4px">
+      ${name}
+    </button>`).join('');
+
+  const tabContent = conDatos.map((name,i)=>{
+    const rows  = d.asesores_daily[name];
+    const totC  = rows.reduce((s,r)=>s+r.contactos,0);
+    const totQ  = rows.reduce((s,r)=>s+r.cotizaciones,0);
+    const totV  = rows.reduce((s,r)=>s+r.ventas,0);
+    const totVl = rows.reduce((s,r)=>s+r.valor,0);
+    return `<div id="rtab-${name.replace(/ /g,'-')}" style="display:${i===0?'block':'none'}">
+      <table class="data-table" style="margin-top:10px">
+        <thead><tr>
+          <th>Fecha</th><th class="num">Contactos</th><th class="num">Cotizaciones</th>
+          <th class="num">Ventas</th><th class="num">Valor Marketing</th><th class="num">Conv.%</th>
+        </tr></thead>
+        <tbody>${rows.map(r=>`<tr>
+          <td><strong>${r.fecha}</strong></td>
+          <td class="num">${r.contactos||'—'}</td>
+          <td class="num">${r.cotizaciones||'—'}</td>
+          <td class="num" style="color:#d2a8ff">${r.ventas||'—'}</td>
+          <td class="num">${r.valor>0?M(r.valor):'—'}</td>
+          <td class="num" style="color:var(--muted)">${r.contactos>0?(r.ventas/r.contactos*100).toFixed(1)+'%':'—'}</td>
+        </tr>`).join('')}</tbody>
+        <tfoot><tr>
+          <td><strong>TOTAL</strong></td>
+          <td class="num"><strong>${totC}</strong></td>
+          <td class="num"><strong>${totQ}</strong></td>
+          <td class="num" style="color:#d2a8ff"><strong>${totV}</strong></td>
+          <td class="num"><strong>${M(totVl)}</strong></td>
+          <td class="num" style="color:var(--muted)"><strong>${totC>0?(totV/totC*100).toFixed(1)+'%':'—'}</strong></td>
+        </tr></tfoot>
+      </table></div>`;
+  }).join('');
+
+  // Productos
+  const productosHTML = d.productos.filter(p=>p.u>0).map(p=>`
+    <tr><td>${p.name}</td><td class="num">${p.u}</td><td class="num">${Ms(p.v)}</td></tr>
+  `).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--muted)">Sin ventas registradas aún</td></tr>`;
+
+  // Pagos
+  const totalPagos = d.pagos.reduce((s,p)=>s+p.v,0);
+  const pagosHTML = d.pagos.filter(p=>p.v>0).map(p=>{
+    const pp=totalPagos>0?(p.v/totalPagos*100):0;
+    return `<tr>
+      <td>${p.name}</td>
+      <td style="min-width:120px">${bar(pp,'#d2a8ff')}</td>
+      <td class="num">${Ms(p.v)}</td>
+      <td class="num" style="color:var(--muted)">${pp.toFixed(1)}%</td>
+    </tr>`;
+  }).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--muted)">Sin recaudo registrado</td></tr>`;
+
+  // Ventas diarias (INFORME_MES)
+  const diarioHTML = d.diario.map(r=>`
+    <tr>
+      <td>${r.fecha}</td>
+      <td class="num">${r.ventas}</td>
+      <td class="num">${Ms(r.precio)}</td>
+      <td class="num" style="color:var(--green)">${r.recaudo>0?Ms(r.recaudo):'—'}</td>
+      <td class="num" style="color:${r.pendiente>0?'var(--yellow)':'var(--muted)'}">${r.pendiente>0?Ms(r.pendiente):'—'}</td>
+    </tr>`).join('');
+
+  document.getElementById('main').innerHTML=`
+    <div class="page-header">
+      <div class="page-title">
+        <span style="width:12px;height:12px;border-radius:50%;background:#d2a8ff;display:inline-block;flex-shrink:0"></span>
+        <h2>Cuadre Ronal — Muebles Imperial Jamundí</h2>
+        <span class="badge">Junio 2026</span>
+        <span class="badge">Corte: ${d.fechaCorte}</span>
+      </div>
+      <div class="page-note">ℹ️ Datos del archivo <strong>SEGUIMIENTO_PEDIDOS_MUEBLES_EL REY UNIFICADO</strong> — pestaña <strong>Marketing</strong> (KPIs por asesor) + <strong>Informe_Mes</strong> (metas y proyecciones). ${d.diasLaborados} días laborados de ${d.diasMes}.</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Ventas actuales</div>
+        <div class="kpi-value" style="color:#d2a8ff">${totalActualU}</div>
+        <div class="kpi-sub">de ${totalMetaU} meta · <span style="color:${pctColor(pctU)}">${pctU.toFixed(1)}%</span></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Recaudo actual</div>
+        <div class="kpi-value" style="color:#d2a8ff">${Ms(totalActualV)}</div>
+        <div class="kpi-sub">meta ${Ms(totalMetaV)} · <span style="color:${pctColor(pctV)}">${pctV.toFixed(1)}%</span></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Días avanzados</div>
+        <div class="kpi-value">${d.diasLaborados}</div>
+        <div class="kpi-sub">de ${d.diasMes} · <span style="color:${pctColor(pctDias)}">${pctDias.toFixed(0)}%</span> del mes</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Promedio diario</div>
+        <div class="kpi-value">${Ms(d.promedioDiario_v)}</div>
+        <div class="kpi-sub">recaudo / día</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Proyección cierre</div>
+        <div class="kpi-value">${d.proyeccion_u} uds</div>
+        <div class="kpi-sub">${Ms(d.proyeccion_v)} estimado</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">% cumpl. meta</div>
+        <div class="kpi-value" style="color:${pctColor(totalMetaV>0?d.proyeccion_v/totalMetaV*100:0)}">${totalMetaV>0?(d.proyeccion_v/totalMetaV*100).toFixed(1):0}%</div>
+        <div class="kpi-sub">proyección vs meta</div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <h3>Progreso por Asesor — Ventas vs Meta + Marketing</h3>
+      <table class="data-table">
+        <thead><tr>
+          <th>Asesor</th><th class="num">Ventas</th><th>Avance</th><th class="num">% Meta</th>
+          <th class="num">Valor actual</th><th class="num">Meta valor</th>
+          <th class="num">Contactos</th><th class="num">Cotizaciones</th><th class="num">Conv.%</th>
+        </tr></thead>
+        <tbody>${asesoresHTML}</tbody>
+      </table>
+    </div>
+
+    <div class="table-card">
+      <h3>Marketing por Asesor — Detalle diario</h3>
+      <div style="margin-bottom:8px">${tabNav}</div>
+      ${tabContent}
+    </div>
+
+    <div class="charts-row">
+      <div class="table-card" style="margin-bottom:0">
+        <h3>Mix de Productos</h3>
+        <table class="data-table">
+          <thead><tr><th>Producto</th><th class="num">Uds</th><th class="num">Valor</th></tr></thead>
+          <tbody>${productosHTML}</tbody>
+        </table>
+      </div>
+      <div class="table-card" style="margin-bottom:0">
+        <h3>Formas de Pago</h3>
+        <table class="data-table">
+          <thead><tr><th>Método</th><th>Distribución</th><th class="num">Monto</th><th class="num">%</th></tr></thead>
+          <tbody>${pagosHTML}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="table-card" style="margin-top:14px">
+      <h3>Ventas Diarias — Detalle pedidos</h3>
+      <table class="data-table">
+        <thead><tr>
+          <th>Fecha</th><th class="num">Ventas</th><th class="num">Precio total</th>
+          <th class="num">Recaudado</th><th class="num">Pendiente</th>
+        </tr></thead>
+        <tbody>${diarioHTML||'<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin pedidos registrados aún</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+function ronalMktTab(nombre){
+  document.querySelectorAll('[id^="rtab-"]').forEach(el=>el.style.display='none');
+  const tab = document.getElementById('rtab-'+nombre.replace(/ /g,'-'));
+  if(tab) tab.style.display='block';
+  document.querySelectorAll('[data-ronal-tab]').forEach(btn=>{
+    const active = btn.dataset.ronalTab === nombre;
+    btn.style.background = active?'var(--surface3)':'none';
+    btn.style.color = active?'var(--text)':'var(--muted)';
+  });
+}
+
+function clientAsesorTab(clientId, nombre){
+  // Ocultar todos los paneles de este cliente
+  document.querySelectorAll(`[id^="adtab-${clientId}-"]`).forEach(el=>el.style.display='none');
+  const tab = document.getElementById('adtab-'+clientId+'-'+nombre.replace(/ /g,'-'));
+  if(tab) tab.style.display='block';
+  document.querySelectorAll(`[data-adtab^="${clientId}-"]`).forEach(btn=>{
+    const active = btn.dataset.adtab === clientId+'-'+nombre;
+    btn.style.background = active?'var(--surface3)':'none';
+    btn.style.color = active?'var(--text)':'var(--muted)';
+  });
 }
 
 // ── VENTAS HOY ────────────────────────────────────────────────────────

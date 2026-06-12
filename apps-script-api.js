@@ -327,13 +327,25 @@ function getJamundiData() {
     1:'Ene',2:'Feb',3:'Mar',4:'Abr',5:'May',6:'Jun',
     7:'Jul',8:'Ago',9:'Sep',10:'Oct',11:'Nov',12:'Dic'
   };
+  const ASESORES_KNOWN = ['EDUARDO','NICOL','JUAN GABRIEL','SARA GIRALDO','RONAL'];
+  const SEDES_KNOWN    = ['CERRITOS','CARTAGO','JAMUNDÍ'];
+  const PRODUCTS_KNOWN = ['GRAN DUQUE','EMPERADOR','BASE CAMA','ESPALDAR','SALA BOSTON',
+                          'SALA VENECIA','COMEDOR FLOR MORADO','SALA ROMA','IMPERIO'];
+  const PAGOS_KNOWN    = ['EFECTIVO','TRANSFERENCIA','DAVIVIENDA','BANCOLOMBIA',
+                          'BOLD','ADDI','SISTECREDITO','MIXTO','CONTRA ENTREGA'];
 
-  const ss   = SpreadsheetApp.openById(SHEETS.jamundi.id);
-  const sh   = ss.getSheets()[0];
-  const rows = sh.getDataRange().getValues();
+  const ss = SpreadsheetApp.openById(SHEETS.jamundi.id);
 
-  const dailyMap = {};
-  let mesLabel   = '';
+  // Buscar pestañas MARKETING e INFORME_MES
+  let mktSh = null, informeSh = null;
+  ss.getSheets().forEach(s => {
+    const n = s.getName().toUpperCase();
+    if (n === 'MARKETING') mktSh = s;
+    if (n.includes('INFORME')) informeSh = s;
+  });
+
+  let mesLabel = '';
+  const asesoresMap = {};
 
   function parseFecha(raw) {
     if (raw instanceof Date) return raw;
@@ -343,83 +355,174 @@ function getJamundiData() {
     return new Date(s);
   }
 
-  // Lee bloques por asesor: FECHA | CONTACTOS [x] | COTIZACIONES [x] | VENTAS [x] | TOTAL [x]
-  for (let i = 0; i < rows.length; i++) {
-    const r  = rows[i];
-    const c0 = cleanStr(r[0]).toUpperCase();
-    const c1 = cleanStr(r[1]).toUpperCase();
-    const c2 = cleanStr(r[2]).toUpperCase();
-    const c3 = cleanStr(r[3]).toUpperCase();
-    if (c0 === 'FECHA' && c1.startsWith('CONTACTOS') && c2.startsWith('COTIZACIONES') && c3.startsWith('VENTAS')) {
-      for (let j = i + 1; j < rows.length; j++) {
-        const dr = rows[j];
-        if (!dr[0]) continue;
-        if (cleanStr(dr[0]).toUpperCase() === 'FECHA') break;
-        const dateObj = parseFecha(dr[0]);
-        if (isNaN(dateObj)) break;
-        const c   = cleanNum(dr[1]);
-        const q   = cleanNum(dr[2]);
-        const v   = cleanNum(dr[3]);
-        const val = cleanNum(dr[4]);
-        if (c === 0 && v === 0 && val === 0) continue;
-        const key = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'dd/MM');
-        if (!mesLabel) {
-          mesLabel = MES_MAP[dateObj.getMonth()+1] + ' ' + String(dateObj.getFullYear()).slice(2);
+  // ── Lee pestaña MARKETING: bloques por asesor ───────────────────────
+  if (mktSh) {
+    const rows = mktSh.getDataRange().getValues();
+    for (let i = 0; i < rows.length; i++) {
+      const r  = rows[i];
+      const c0 = cleanStr(r[0]).toUpperCase();
+      const c1 = cleanStr(r[1]).toUpperCase();
+      const c2 = cleanStr(r[2]).toUpperCase();
+      const c3 = cleanStr(r[3]).toUpperCase();
+      if (c0 === 'FECHA' && c1.startsWith('CONTACTOS') && c2.startsWith('COTIZACIONES') && c3.startsWith('VENTAS')) {
+        const asesor = c1.replace('CONTACTOS','').trim() || 'UNKNOWN';
+        if (!asesoresMap[asesor]) asesoresMap[asesor] = [];
+        for (let j = i + 1; j < rows.length; j++) {
+          const dr = rows[j];
+          if (!dr[0]) continue;
+          if (cleanStr(dr[0]).toUpperCase() === 'FECHA') break;
+          const dateObj = parseFecha(dr[0]);
+          if (isNaN(dateObj)) break;
+          const c   = cleanNum(dr[1]);
+          const q   = cleanNum(dr[2]);
+          const v   = cleanNum(dr[3]);
+          const val = cleanNum(dr[4]);
+          if (c === 0 && v === 0 && val === 0) continue;
+          const key = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'dd/MM');
+          if (!mesLabel) mesLabel = MES_MAP[dateObj.getMonth()+1] + ' ' + String(dateObj.getFullYear()).slice(2);
+          asesoresMap[asesor].push({fecha:key, contactos:c, cotizaciones:q, ventas:v, valor:val});
         }
-        if (!dailyMap[key]) dailyMap[key] = {contactos:0,cotizaciones:0,ventas:0,valor:0};
-        dailyMap[key].contactos   += c;
-        dailyMap[key].cotizaciones += q;
-        dailyMap[key].ventas      += v;
-        dailyMap[key].valor       += val;
       }
     }
   }
 
-  // Tabla consolidada (FECHA | TOTAL VENTAS | TOTAL VENTA...): captura ventas
-  // de días donde el asesor aún no registró su bloque diario
-  for (let i = 0; i < rows.length; i++) {
-    const r  = rows[i];
-    const c0 = cleanStr(r[0]).toUpperCase();
-    const c1 = cleanStr(r[1]).toUpperCase();
-    const c2 = cleanStr(r[2]).toUpperCase();
-    if (c0 === 'FECHA' && c1.includes('TOTAL') && c2.includes('TOTAL')) {
-      for (let j = i + 1; j < rows.length; j++) {
-        const dr = rows[j];
-        if (!dr[0]) continue;
-        const dateObj = parseFecha(dr[0]);
-        if (isNaN(dateObj)) break;
-        const v   = cleanNum(dr[1]);
-        const val = cleanNum(dr[2]);
-        if (v === 0 && val === 0) continue;
-        const key = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'dd/MM');
-        if (!mesLabel) {
-          mesLabel = MES_MAP[dateObj.getMonth()+1] + ' ' + String(dateObj.getFullYear()).slice(2);
+  // Agrega totales diarios de todos los asesores
+  const dailyTotals = {};
+  Object.values(asesoresMap).forEach(rows => {
+    rows.forEach(r => {
+      if (!dailyTotals[r.fecha]) dailyTotals[r.fecha] = {contactos:0,cotizaciones:0,ventas:0,valor:0};
+      dailyTotals[r.fecha].contactos    += r.contactos;
+      dailyTotals[r.fecha].cotizaciones += r.cotizaciones;
+      dailyTotals[r.fecha].ventas       += r.ventas;
+      dailyTotals[r.fecha].valor        += r.valor;
+    });
+  });
+
+  const sortDates = obj => Object.keys(obj).sort((a,b) => {
+    const [da,ma] = a.split('/').map(Number);
+    const [db,mb] = b.split('/').map(Number);
+    return (ma*100+da)-(mb*100+db);
+  });
+
+  const daily = sortDates(dailyTotals).map(f => ({fecha:f, ...dailyTotals[f]}));
+
+  const asesores_mkt = ASESORES_KNOWN
+    .filter(name => asesoresMap[name] && asesoresMap[name].length > 0)
+    .map(name => ({
+      name,
+      contactos:    asesoresMap[name].reduce((s,r)=>s+r.contactos,0),
+      cotizaciones: asesoresMap[name].reduce((s,r)=>s+r.cotizaciones,0),
+      ventas:       asesoresMap[name].reduce((s,r)=>s+r.ventas,0),
+      valor:        asesoresMap[name].reduce((s,r)=>s+r.valor,0),
+      daily:        asesoresMap[name],
+    }));
+
+  // ── Lee pestaña INFORME_MES ──────────────────────────────────────────
+  const out = {
+    daily, asesores_mkt,
+    monthly: {mes: mesLabel || 'Jun 26'},
+    asesores_actual: [], metas_asesores: [],
+    proyeccion: {}, diario_ventas: [],
+    productos: [], pagos: [],
+    sedes_actual: [], metas_sedes: [],
+  };
+
+  if (informeSh) {
+    const rows      = informeSh.getDataRange().getValues();
+    let asesActDone = false, metasAsDone   = false;
+    let sedesActDone= false, metasSedDone  = false;
+    let diarioBlock = false, prodBlock     = false;
+
+    for (let i = 0; i < rows.length; i++) {
+      const r  = rows[i];
+      const c0 = cleanStr(r[0]).toUpperCase();
+      const c1 = cleanStr(r[1]).toUpperCase();
+      const c2 = cleanStr(r[2]).toUpperCase();
+
+      // Tabla diaria
+      if (c0 === 'FECHA' && c1.includes('TOTAL') && !diarioBlock) { diarioBlock = true; continue; }
+      if (diarioBlock) {
+        if (c0 === 'FECHA' || c0 === 'FECHA CORTE') { diarioBlock = false; }
+        else if (r[0]) {
+          const dateObj = r[0] instanceof Date ? r[0] : parseFecha(r[0]);
+          if (!isNaN(dateObj)) {
+            const v = cleanNum(r[1]);
+            if (v > 0) out.diario_ventas.push({
+              fecha: Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'dd/MM'),
+              ventas: v, precio: cleanNum(r[2]), recaudo: cleanNum(r[3]), pendiente: cleanNum(r[4]),
+            });
+          } else diarioBlock = false;
         }
-        if (!dailyMap[key]) dailyMap[key] = {contactos:0,cotizaciones:0,ventas:0,valor:0};
-        if (dailyMap[key].ventas === 0) {   // solo si el bloque asesor no lo cubrió
-          dailyMap[key].ventas += v;
-          dailyMap[key].valor  += val;
-        }
+        continue;
       }
-      break;
+
+      // Proyección
+      if (c0 === 'DÍAS LABORADOS' || c0 === 'DIAS LABORADOS') out.proyeccion.diasLaborados  = cleanNum(r[1]);
+      if (c0 === 'TOTAL VENDIDO A LA FECHA')                   out.proyeccion.totalVentas    = cleanNum(r[1]);
+      if (c0 === 'TOTAL RECAUDADO A LA FECHA')                 out.proyeccion.totalRecaudo   = cleanNum(r[1]);
+      if (c0 === 'PROMEDIO DIARIO VENDIDO')                    out.proyeccion.promedioDiario = cleanNum(r[1]);
+      if (c0.includes('PROYECCI') && c0.includes('VENTAS'))   out.proyeccion.proyVentas     = cleanNum(r[1]);
+      if (c0.includes('PROYECCI') && c0.includes('RECAUDO'))  out.proyeccion.proyRecaudo    = cleanNum(r[1]);
+
+      // Productos
+      if (c0 === 'PRODUCTO' && c1 === 'CANTIDAD') { prodBlock = true; continue; }
+      if (prodBlock && PRODUCTS_KNOWN.includes(c0)) out.productos.push({name:r[0], cantidad:cleanNum(r[1]), valor:cleanNum(r[2])});
+      if (prodBlock && !PRODUCTS_KNOWN.includes(c0) && c0 !== '') prodBlock = false;
+
+      // Pagos
+      if (PAGOS_KNOWN.includes(c0)) out.pagos.push({name:r[0], valor:cleanNum(r[1])});
+
+      // Asesores actual: ASESOR | CANTIDAD | TOTAL (3 cols)
+      if (c0 === 'ASESOR' && c1 === 'CANTIDAD' && c2 === 'TOTAL' && !asesActDone) {
+        let j = i + 1;
+        while (j < rows.length && ASESORES_KNOWN.includes(cleanStr(rows[j][0]).toUpperCase())) {
+          out.asesores_actual.push({name:rows[j][0], cantidad:cleanNum(rows[j][1]), valor:cleanNum(rows[j][2])});
+          j++;
+        }
+        asesActDone = true;
+      }
+
+      // Metas asesores: ASESOR | TOTAL (2 cols, ≥ 1M)
+      if (c0 === 'ASESOR' && c1 === 'TOTAL' && !cleanStr(r[2]) && !metasAsDone) {
+        const temp = [];
+        let j = i + 1;
+        while (j < rows.length && ASESORES_KNOWN.includes(cleanStr(rows[j][0]).toUpperCase())) {
+          const val = cleanNum(rows[j][1]);
+          if (val >= 1000000) temp.push({name:rows[j][0], meta:val});
+          j++;
+        }
+        if (temp.length) { out.metas_asesores = temp; metasAsDone = true; }
+      }
+
+      // Sedes actual (primera vez)
+      if (c0 === 'SEDE' && c1 === 'CANTIDAD' && !sedesActDone) {
+        let j = i + 1;
+        while (j < rows.length && SEDES_KNOWN.includes(cleanStr(rows[j][0]).toUpperCase())) {
+          out.sedes_actual.push({name:rows[j][0], cantidad:cleanNum(rows[j][1]), valor:cleanNum(rows[j][2])});
+          j++;
+        }
+        sedesActDone = true;
+      }
+
+      // Metas sedes (segunda aparición con valores grandes)
+      if (c0 === 'SEDE' && c1 === 'CANTIDAD' && sedesActDone && !metasSedDone) {
+        const temp = [];
+        let j = i + 1;
+        while (j < rows.length && SEDES_KNOWN.includes(cleanStr(rows[j][0]).toUpperCase())) {
+          const mu = cleanNum(rows[j][1]), mv = cleanNum(rows[j][2]);
+          if (mu > 10 || mv > 10000000) temp.push({name:rows[j][0], meta_u:mu, meta_v:mv});
+          j++;
+        }
+        if (temp.length) { out.metas_sedes = temp; metasSedDone = true; }
+      }
     }
   }
-
-  const daily = Object.keys(dailyMap)
-    .sort((a,b) => {
-      const [da,ma] = a.split('/').map(Number);
-      const [db,mb] = b.split('/').map(Number);
-      return (ma*100+da) - (mb*100+db);
-    })
-    .map(f => ({ fecha:f, ...dailyMap[f] }));
 
   const totC   = daily.reduce((s,r)=>s+r.contactos,0);
   const totQ   = daily.reduce((s,r)=>s+r.cotizaciones,0);
-  const totV   = daily.reduce((s,r)=>s+r.ventas,0);
-  const totVal = daily.reduce((s,r)=>s+r.valor,0);
+  const totV   = out.diario_ventas.reduce((s,r)=>s+r.ventas,0) || daily.reduce((s,r)=>s+r.ventas,0);
+  const totVal = out.diario_ventas.reduce((s,r)=>s+r.precio,0) || daily.reduce((s,r)=>s+r.valor,0);
+  out.monthly  = {mes: mesLabel || 'Jun 26', contactos: totC, cotizaciones: totQ, ventas: totV, valor: totVal};
 
-  return {
-    daily,
-    monthly: { mes: mesLabel, contactos: totC, cotizaciones: totQ, ventas: totV, valor: totVal }
-  };
+  return out;
 }
