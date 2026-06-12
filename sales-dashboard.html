@@ -223,20 +223,32 @@ function mergeLiveElRey(data) {
   }
 }
 
-function mergeLiveLili(tabs) {
-  // tabs es array: [{tab:'Jun 26', contactos, cotizaciones, ventas, valor}, ...]
-  tabs.forEach(t => {
-    const mes = t.tab; // e.g. "Jun 26"
-    const client = CLIENTS.find(c => c.id === 'lili');
-    if (!client) return;
-    const existing = client.data.find(d => d.mes === mes);
+function mergeLiveLili(liliData) {
+  const client = CLIENTS.find(c => c.id === 'lili');
+  if (!client) return;
+
+  // New structure: { monthly: {mes, contactos, cotizaciones, ventas, valor}, daily: [...] }
+  // Legacy structure (array): [{tab, contactos, cotizaciones, ventas, valor}]
+  const updates = Array.isArray(liliData) ? liliData.map(t => ({...t, mes: t.tab}))
+                                          : (liliData.monthly?.mes ? [liliData.monthly] : []);
+
+  updates.forEach(t => {
+    if (!t.mes) return;
+    const existing = client.data.find(d => d.mes === t.mes);
     if (existing) {
-      existing.contactos   = t.contactos;
-      existing.cotizaciones= t.cotizaciones;
-      existing.ventas      = t.ventas;
-      existing.valor       = t.valor;
+      if (t.contactos)    existing.contactos    = t.contactos;
+      if (t.cotizaciones) existing.cotizaciones = t.cotizaciones;
+      if (t.ventas)       existing.ventas       = t.ventas;
+      if (t.valor)        existing.valor        = t.valor;
+      existing.parcial = true;
     }
   });
+
+  // Merge daily breakdown
+  if (!Array.isArray(liliData) && liliData.daily && liliData.daily.length && liliData.monthly?.mes) {
+    if (!client.daily) client.daily = {};
+    client.daily[liliData.monthly.mes] = liliData.daily;
+  }
 }
 
 let currentView = { type: 'overview' };

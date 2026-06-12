@@ -221,34 +221,98 @@ function getElReyData() {
 
 // ── Lili Valencia KPIs Online ──────────────────────────────────────────
 function getLiliKpisData() {
-  const ss = SpreadsheetApp.openById(SHEETS.liliKpis.id);
-  const sheets = ss.getSheets();
-  const result = [];
-
   const MES_MAP = {
     1:'Ene',2:'Feb',3:'Mar',4:'Abr',5:'May',6:'Jun',
     7:'Jul',8:'Ago',9:'Sep',10:'Oct',11:'Nov',12:'Dic'
   };
 
-  sheets.forEach(sh => {
-    const name = sh.getName();
-    const rows = sh.getDataRange().getValues();
-    // Look for a TOTALES or summary row
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      if (cleanStr(r[0]).toUpperCase() === 'TOTALES' || cleanStr(r[0]).toUpperCase() === 'TOTAL') {
-        // Try to figure out month from sheet name or first date in sheet
-        const contactos = cleanNum(r[1]);
-        const cotizaciones = cleanNum(r[2]);
-        const ventas = cleanNum(r[3]);
-        const valor = cleanNum(r[5]) || cleanNum(r[6]);
-        if (ventas > 0 || contactos > 0) {
-          result.push({ tab: name, contactos, cotizaciones, ventas, valor });
-        }
-        break;
-      }
-    }
-  });
+  const ss = SpreadsheetApp.openById(SHEETS.liliKpis.id);
 
-  return result;
+  // Find DASHBOARD tab (case-insensitive)
+  let sh = null;
+  ss.getSheets().forEach(s => {
+    if (s.getName().toUpperCase() === 'DASHBOARD') sh = s;
+  });
+  if (!sh) return { daily: [], monthly: {} };
+
+  const rows = sh.getDataRange().getValues();
+
+  // Find the CONSOLIDATED daily table:
+  // Header: Fecha | Contactos | Cotizaciones | Ventas | Valor | Ticket | WhatsApp | Instagram | ...
+  // (NOT the one with "Ventas registradas" — we want col3 = "VENTAS" exactly)
+  let headerRow = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const c0 = cleanStr(r[0]).toUpperCase();
+    const c1 = cleanStr(r[1]).toUpperCase();
+    const c3 = cleanStr(r[3]).toUpperCase();
+    const c4 = cleanStr(r[4]).toUpperCase();
+    if (c0 === 'FECHA' && c1 === 'CONTACTOS' && c3 === 'VENTAS' && c4 === 'VALOR') {
+      headerRow = i;
+      // Keep scanning — we want the LAST such header (consolidated table comes after registradas)
+    }
+  }
+  if (headerRow < 0) return { daily: [], monthly: {} };
+
+  const hdr = rows[headerRow].map(v => cleanStr(v).toUpperCase());
+  const iC   = hdr.indexOf('CONTACTOS');
+  const iQ   = hdr.indexOf('COTIZACIONES');
+  const iV   = hdr.indexOf('VENTAS');
+  const iVal = hdr.indexOf('VALOR');
+  const iWA  = hdr.indexOf('WHATSAPP');
+  const iIG  = hdr.indexOf('INSTAGRAM');
+
+  const daily = [];
+  let totC = 0, totQ = 0, totV = 0, totVal = 0;
+  let mesLabel = '';
+
+  for (let i = headerRow + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const rawFecha = r[0];
+    if (!rawFecha) continue;
+
+    let dateObj = rawFecha instanceof Date ? rawFecha : new Date(rawFecha);
+    if (isNaN(dateObj)) continue;
+
+    const v   = cleanNum(r[iV]);
+    const val = cleanNum(r[iVal]);
+    const c   = cleanNum(r[iC]);
+    const q   = cleanNum(r[iQ]);
+
+    // Skip completely empty days (no contacts and no sales)
+    if (c === 0 && v === 0 && val === 0) continue;
+
+    const fechaStr = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'dd/MM');
+    if (!mesLabel) {
+      const m = dateObj.getMonth() + 1;
+      const y = String(dateObj.getFullYear()).slice(2);
+      mesLabel = MES_MAP[m] + ' ' + y;
+    }
+
+    daily.push({
+      fecha:       fechaStr,
+      contactos:   c,
+      cotizaciones:q,
+      ventas:      v,
+      valor:       val,
+      whatsapp:    iWA >= 0 ? cleanNum(r[iWA]) : null,
+      instagram:   iIG >= 0 ? cleanNum(r[iIG]) : null,
+    });
+
+    totC   += c;
+    totQ   += q;
+    totV   += v;
+    totVal += val;
+  }
+
+  return {
+    daily,
+    monthly: {
+      mes:          mesLabel,
+      contactos:    totC,
+      cotizaciones: totQ,
+      ventas:       totV,
+      valor:        totVal,
+    }
+  };
 }
