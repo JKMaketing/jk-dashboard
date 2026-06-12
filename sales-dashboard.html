@@ -76,6 +76,22 @@ main{flex:1;overflow-y:auto;padding:24px 28px}
 .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px}
 .chart-card h3{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:14px}
 .chart-wrap{position:relative;height:240px}
+/* Ventas Hoy */
+.hoy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:24px}
+.hoy-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.hoy-card-header{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.hoy-card-name{font-weight:600;font-size:13px;flex:1}
+.hoy-card-date{font-size:10px;color:var(--muted)}
+.hoy-inputs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.hoy-field{display:flex;flex-direction:column;gap:4px}
+.hoy-field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.hoy-field input{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:7px 8px;color:var(--text);font-size:13px;font-weight:600;outline:none;text-align:center;width:100%;transition:border-color .15s}
+.hoy-field input:focus{border-color:var(--hoy-color,#58a6ff)}
+.hoy-saved{font-size:10px;color:var(--green);margin-top:8px;min-height:14px;text-align:right}
+.hoy-totals{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.hoy-total-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center}
+.hoy-total-v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.hoy-total-l{font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
 /* Table */
 .table-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:20px}
 .table-card h3{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);padding:14px 16px;border-bottom:1px solid var(--border)}
@@ -110,6 +126,7 @@ main{flex:1;overflow-y:auto;padding:24px 28px}
   </div>
   <span class="nav-label">General</span>
   <div class="nav-item" id="nav-overview" onclick="showOverview()"><span>📊</span> Resumen general</div>
+  <div class="nav-item" id="nav-hoy" onclick="showVentasHoy()" style="--accent:#3fb950"><span>📅</span> Ventas Hoy</div>
   <div class="nav-sep"></div>
   <span class="nav-label">El Rey</span>
   <div class="nav-item" id="nav-elrey" onclick="showElReyGeneral()" style="--accent:#ffa657">
@@ -227,6 +244,7 @@ function reRenderCurrent() {
   if (currentView.type === 'overview')      showOverview();
   else if (currentView.type === 'client')   showClient(currentView.idx);
   else if (currentView.type === 'elrey')    showElReyGeneral();
+  else if (currentView.type === 'hoy')      showVentasHoy();
 }
 
 function updateLiveBadge() {
@@ -1103,6 +1121,162 @@ function showElReyGeneral(){
       </table>
     </div>
   `;
+}
+
+// ── VENTAS HOY ────────────────────────────────────────────────────────
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function getDailyEntry(clientId) {
+  const raw = localStorage.getItem('hoy_'+clientId+'_'+todayKey());
+  return raw ? JSON.parse(raw) : {contactos:0, ventas:0, valor:0};
+}
+function setDailyEntry(clientId, obj) {
+  localStorage.setItem('hoy_'+clientId+'_'+todayKey(), JSON.stringify(obj));
+}
+
+function showVentasHoy() {
+  currentView = {type:'hoy'};
+  killCharts();
+  document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));
+  document.getElementById('nav-hoy').classList.add('active');
+
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const tk = todayKey();
+
+  // Totals across all clients for today
+  const allEntries = CLIENTS.map(c => getDailyEntry(c.id));
+  const totC = allEntries.reduce((s,e)=>s+e.contactos,0);
+  const totV = allEntries.reduce((s,e)=>s+e.ventas,0);
+  const totVal = allEntries.reduce((s,e)=>s+e.valor,0);
+
+  // El Rey diario — last entry
+  const elreyHoy = EL_REY_CUADRE.diario.length
+    ? EL_REY_CUADRE.diario[EL_REY_CUADRE.diario.length-1]
+    : null;
+
+  const clientCards = CLIENTS.map(c => {
+    const e = getDailyEntry(c.id);
+    // For El Rey (Cerritos channel), prefer live diario last entry
+    const isElRey = ['colchones-pereira','cartago'].includes(c.id);
+    return `
+    <div class="hoy-card" style="border-color:${c.color}22">
+      <div class="hoy-card-header">
+        <span style="width:8px;height:8px;border-radius:50%;background:${c.color};flex-shrink:0"></span>
+        <span class="hoy-card-name">${c.name}</span>
+        <span class="hoy-card-date">${tk}</span>
+      </div>
+      <div class="hoy-inputs" style="--hoy-color:${c.color}">
+        <div class="hoy-field">
+          <label>Contactos</label>
+          <input type="number" min="0" step="1" placeholder="0"
+            value="${e.contactos||''}"
+            data-client="${c.id}" data-field="contactos"
+            oninput="onHoyInput(this)"
+            style="border-color:${e.contactos?c.color+'66':''}">
+        </div>
+        <div class="hoy-field">
+          <label>Ventas</label>
+          <input type="number" min="0" step="1" placeholder="0"
+            value="${e.ventas||''}"
+            data-client="${c.id}" data-field="ventas"
+            oninput="onHoyInput(this)"
+            style="border-color:${e.ventas?c.color+'66':''}">
+        </div>
+        <div class="hoy-field">
+          <label>Valor $</label>
+          <input type="number" min="0" step="100000" placeholder="0"
+            value="${e.valor||''}"
+            data-client="${c.id}" data-field="valor"
+            oninput="onHoyInput(this)"
+            style="border-color:${e.valor?c.color+'66':''}">
+        </div>
+      </div>
+      <div class="hoy-saved" id="hoy-saved-${c.id}">${e.ventas||e.contactos?'✓ Guardado':''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // El Rey full diario table
+  const diarioRows = EL_REY_CUADRE.diario.map((r,i) => {
+    const isLast = i === EL_REY_CUADRE.diario.length-1;
+    return `<tr style="${isLast?'background:var(--surface2)':''}">
+      <td style="${isLast?'color:var(--green);font-weight:600':''}">
+        ${r.fecha}${isLast?' <span style="font-size:10px;background:var(--green)22;color:var(--green);border-radius:3px;padding:1px 5px">hoy</span>':''}
+      </td>
+      <td class="num">${r.ventas}</td>
+      <td class="num">${Ms(r.precio)}</td>
+      <td class="num" style="color:var(--green)">${Ms(r.recaudo)}</td>
+      <td class="num" style="color:${r.pendiente?'var(--yellow)':'var(--muted)'}">${r.pendiente?Ms(r.pendiente):'—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header">
+      <div class="page-title">
+        <h2>Ventas Hoy</h2>
+        <span class="badge">${dateStr}</span>
+      </div>
+      <div class="page-note">📝 Ingresa los contactos y ventas del día para cada cliente. Los datos se guardan automáticamente en este dispositivo por fecha.</div>
+    </div>
+
+    <div class="hoy-totals">
+      <div class="hoy-total-card">
+        <div class="hoy-total-v" style="color:#58a6ff" id="hoy-tot-c">${Nf(totC)||'—'}</div>
+        <div class="hoy-total-l">Contactos totales hoy</div>
+      </div>
+      <div class="hoy-total-card">
+        <div class="hoy-total-v" style="color:#3fb950" id="hoy-tot-v">${Nf(totV)||'—'}</div>
+        <div class="hoy-total-l">Ventas totales hoy</div>
+      </div>
+      <div class="hoy-total-card">
+        <div class="hoy-total-v" style="color:#ffa657" id="hoy-tot-val">${totVal?Ms(totVal):'—'}</div>
+        <div class="hoy-total-l">Valor total hoy</div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-bottom:12px">Registro por cliente</div>
+    <div class="hoy-grid">${clientCards}</div>
+
+    ${EL_REY_CUADRE.diario.length ? `
+    <div class="table-card">
+      <h3>El Rey General — Detalle diario (datos en vivo)</h3>
+      <table class="data-table">
+        <thead><tr>
+          <th>Fecha</th><th class="num">Ventas</th><th class="num">Precio total</th>
+          <th class="num">Recaudado</th><th class="num">Pendiente</th>
+        </tr></thead>
+        <tbody>${diarioRows}</tbody>
+      </table>
+    </div>` : ''}
+  `;
+}
+
+function onHoyInput(input) {
+  const clientId = input.dataset.client;
+  const field = input.dataset.field;
+  const val = parseFloat(input.value) || 0;
+  const entry = getDailyEntry(clientId);
+  entry[field] = val;
+  setDailyEntry(clientId, entry);
+
+  // Update saved indicator
+  const saved = document.getElementById('hoy-saved-'+clientId);
+  if (saved) saved.textContent = '✓ Guardado';
+
+  // Recalc totals
+  const allEntries = CLIENTS.map(c => getDailyEntry(c.id));
+  const totC = allEntries.reduce((s,e)=>s+e.contactos,0);
+  const totV = allEntries.reduce((s,e)=>s+e.ventas,0);
+  const totVal = allEntries.reduce((s,e)=>s+e.valor,0);
+  const elC = document.getElementById('hoy-tot-c');
+  const elV = document.getElementById('hoy-tot-v');
+  const elVal = document.getElementById('hoy-tot-val');
+  if(elC) elC.textContent = totC ? Nf(totC) : '—';
+  if(elV) elV.textContent = totV ? Nf(totV) : '—';
+  if(elVal) elVal.textContent = totVal ? Ms(totVal) : '—';
 }
 
 buildSidebar();
