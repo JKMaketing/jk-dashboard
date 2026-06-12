@@ -290,8 +290,24 @@ const CLIENTS = [
       {mes:'Mar 26',contactos:1770,cotizaciones:991,ventas:126,valor:41364745},
       {mes:'Abr 26',contactos:1572,cotizaciones:797,ventas:103,valor:37109520},
       {mes:'May 26',contactos:2162,cotizaciones:1262,ventas:157,valor:60306330},
-      {mes:'Jun 26',contactos:386,cotizaciones:208,ventas:20,valor:6482755,parcial:true},
-    ]
+      {mes:'Jun 26',contactos:1180,cotizaciones:509,ventas:45,valor:12871395,parcial:true},// ✓ días 1-11 · meta: 70 vtas/$25M
+    ],
+    meta:{ ventas:70, valor:25000000 },
+    daily:{
+      'Jun 26':[
+        {fecha:'01/06',contactos:88, cotizaciones:39, ventas:3, valor:997185,  whatsapp:2, instagram:1},
+        {fecha:'02/06',contactos:92, cotizaciones:52, ventas:4, valor:1115090, whatsapp:3, instagram:1},
+        {fecha:'03/06',contactos:110,cotizaciones:73, ventas:6, valor:1629400, whatsapp:5, instagram:1},
+        {fecha:'04/06',contactos:96, cotizaciones:44, ventas:7, valor:2081280, whatsapp:5, instagram:2},
+        {fecha:'05/06',contactos:125,cotizaciones:65, ventas:11,valor:3000875, whatsapp:10,instagram:1},
+        {fecha:'06/06',contactos:179,cotizaciones:72, ventas:4, valor:1112590, whatsapp:3, instagram:1},
+        {fecha:'07/06',contactos:0,  cotizaciones:0,  ventas:1, valor:269900,  whatsapp:1, instagram:0},
+        {fecha:'08/06',contactos:0,  cotizaciones:0,  ventas:0, valor:0,       whatsapp:0, instagram:0},
+        {fecha:'09/06',contactos:188,cotizaciones:59, ventas:7, valor:2198780, whatsapp:6, instagram:1},
+        {fecha:'10/06',contactos:160,cotizaciones:42, ventas:1, valor:346395,  whatsapp:1, instagram:0},
+        {fecha:'11/06',contactos:142,cotizaciones:63, ventas:1, valor:119900,  whatsapp:1, instagram:0},
+      ]
+    }
   },
   {
     id:'dreamhair', name:'Dream Hair', sector:'Extensiones · E-commerce', color:'#f78166',
@@ -790,28 +806,49 @@ function renderClientView(idx){
         }
       });
       if (!rows.length) return '';
-      // Also include El Rey live diario if this is an El Rey client
-      const totalDV = rows.reduce((s,r)=>s+r.valor,0);
-      const totalDN = rows.reduce((s,r)=>s+r.ventas,0);
-      const totalDC = rows.reduce((s,r)=>s+r.contactos,0);
-      const totalDQ = rows.reduce((s,r)=>s+r.cotizaciones,0);
+      const hasWA  = rows.some(r=>r.whatsapp!=null);
+      const hasIG  = rows.some(r=>r.instagram!=null);
+      const totalDV  = rows.reduce((s,r)=>s+r.valor,0);
+      const totalDN  = rows.reduce((s,r)=>s+r.ventas,0);
+      const totalDC  = rows.reduce((s,r)=>s+r.contactos,0);
+      const totalDQ  = rows.reduce((s,r)=>s+r.cotizaciones,0);
+      const totalWA  = hasWA ? rows.reduce((s,r)=>s+(r.whatsapp||0),0) : 0;
+      const totalIG  = hasIG ? rows.reduce((s,r)=>s+(r.instagram||0),0) : 0;
+      // Meta badge if client has meta
+      const metaBadge = c.meta ? (()=>{
+        const pctV = (totalDV/c.meta.valor*100).toFixed(1);
+        const pctN = (totalDN/c.meta.ventas*100).toFixed(1);
+        const col  = parseFloat(pctN)>=80?'var(--green)':parseFloat(pctN)>=50?'var(--yellow)':'var(--red)';
+        return `<span style="margin-left:10px;font-size:10px;color:${col}">
+          Meta: ${totalDN}/${c.meta.ventas} vtas (${pctN}%) · ${Ms(totalDV)}/${Ms(c.meta.valor)} (${pctV}%)
+        </span>`;
+      })() : '';
       return `<div class="table-card">
-        <h3>Detalle diario — ${rows.length} días registrados</h3>
+        <h3>Detalle diario — ${rows.length} días registrados${metaBadge}</h3>
         <table class="data-table">
           <thead><tr>
             <th>Mes</th><th>Fecha</th>
             <th class="num">Contactos</th><th class="num">Cotizaciones</th>
             <th class="num">Ventas</th><th class="num">Valor</th>
+            ${hasWA?'<th class="num" style="color:#3fb950">WA</th>':''}
+            ${hasIG?'<th class="num" style="color:#d2a8ff">IG</th>':''}
+            <th class="num">Conv.%</th>
           </tr></thead>
           <tbody>
-            ${rows.map(r=>`<tr>
-              <td style="color:var(--muted)">${r.mes}</td>
-              <td><strong>${r.fecha}</strong></td>
-              <td class="num">${r.contactos||'—'}</td>
-              <td class="num">${r.cotizaciones||'—'}</td>
-              <td class="num" style="color:${r.ventas>0?c.color:'var(--muted)'}">${r.ventas}</td>
-              <td class="num">${r.valor>0?M(r.valor):'—'}</td>
-            </tr>`).join('')}
+            ${rows.map(r=>{
+              const conv = r.contactos>0?(r.ventas/r.contactos*100).toFixed(1)+'%':'—';
+              return `<tr>
+                <td style="color:var(--muted)">${r.mes}</td>
+                <td><strong>${r.fecha}</strong></td>
+                <td class="num">${r.contactos||'—'}</td>
+                <td class="num">${r.cotizaciones||'—'}</td>
+                <td class="num" style="color:${r.ventas>0?c.color:'var(--muted);font-size:11px'}">${r.ventas||'—'}</td>
+                <td class="num">${r.valor>0?M(r.valor):'—'}</td>
+                ${hasWA?`<td class="num" style="color:#3fb950">${r.whatsapp!=null?r.whatsapp:'—'}</td>`:''}
+                ${hasIG?`<td class="num" style="color:#d2a8ff">${r.instagram!=null?r.instagram:'—'}</td>`:''}
+                <td class="num" style="color:var(--muted)">${conv}</td>
+              </tr>`;
+            }).join('')}
           </tbody>
           <tfoot><tr>
             <td colspan="2"><strong>TOTAL</strong></td>
@@ -819,6 +856,9 @@ function renderClientView(idx){
             <td class="num"><strong>${totalDQ||'—'}</strong></td>
             <td class="num" style="color:${c.color}"><strong>${totalDN}</strong></td>
             <td class="num"><strong>${M(totalDV)}</strong></td>
+            ${hasWA?`<td class="num" style="color:#3fb950"><strong>${totalWA}</strong></td>`:''}
+            ${hasIG?`<td class="num" style="color:#d2a8ff"><strong>${totalIG}</strong></td>`:''}
+            <td class="num" style="color:var(--muted)">${totalDC>0?(totalDN/totalDC*100).toFixed(1)+'%':'—'}</td>
           </tr></tfoot>
         </table>
       </div>`;
