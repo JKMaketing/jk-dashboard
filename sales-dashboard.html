@@ -324,8 +324,22 @@ const CLIENTS = [
       {mes:'Mar 26',contactos:765,cotizaciones:551,ventas:37,valor:42749000},          // ✓
       {mes:'Abr 26',contactos:578,cotizaciones:499,ventas:34,valor:39128000},          // ✓
       {mes:'May 26',contactos:603,cotizaciones:494,ventas:48,valor:64510000},          // ✓
-      {mes:'Jun 26',contactos:72,cotizaciones:62,ventas:10,valor:9972000,parcial:true},// ✓ días 1-5
-    ]
+      {mes:'Jun 26',contactos:182,cotizaciones:159,ventas:19,valor:18234000,parcial:true},// ✓ días 1-10
+    ],
+    daily:{
+      'Jun 26':[
+        {fecha:'01/06',contactos:23,cotizaciones:18,ventas:4,valor:4170000},
+        {fecha:'02/06',contactos:25,cotizaciones:20,ventas:2,valor:2830000},
+        {fecha:'03/06',contactos:24,cotizaciones:24,ventas:1,valor:1000000},
+        {fecha:'04/06',contactos:9, cotizaciones:9, ventas:1,valor:170000},
+        {fecha:'05/06',contactos:23,cotizaciones:23,ventas:6,valor:6384000},
+        {fecha:'06/06',contactos:20,cotizaciones:15,ventas:1,valor:280000},
+        {fecha:'07/06',contactos:2, cotizaciones:2, ventas:0,valor:0},
+        {fecha:'08/06',contactos:13,cotizaciones:13,ventas:0,valor:0},
+        {fecha:'09/06',contactos:43,cotizaciones:35,ventas:2,valor:1250000},
+        {fecha:'10/06',contactos:0, cotizaciones:0, ventas:2,valor:2150000},
+      ]
+    }
   },
   {
     id:'colchones-pereira', name:'Colchones El Rey Online', sector:'Colchones · Pereira', color:'#3fb950',
@@ -763,7 +777,52 @@ function renderClientView(idx){
         </tr></tfoot>
       </table>
       <div style="padding:8px 16px;font-size:11px;color:var(--muted)">★ Mes parcial &nbsp;|&nbsp; ~ Dato estimado &nbsp;|&nbsp; Inversión: ingresa el gasto en pauta por mes para calcular ROAS</div>
-    </div>`;
+    </div>
+
+    ${(()=>{
+      // Build daily rows from client.daily for filtered months
+      const dailySrc = c.daily || {};
+      const rows = [];
+      fdata.forEach(d => {
+        const entries = dailySrc[d.mes];
+        if (entries && entries.length) {
+          entries.forEach(e => rows.push({mes: d.mes, ...e}));
+        }
+      });
+      if (!rows.length) return '';
+      // Also include El Rey live diario if this is an El Rey client
+      const totalDV = rows.reduce((s,r)=>s+r.valor,0);
+      const totalDN = rows.reduce((s,r)=>s+r.ventas,0);
+      const totalDC = rows.reduce((s,r)=>s+r.contactos,0);
+      const totalDQ = rows.reduce((s,r)=>s+r.cotizaciones,0);
+      return `<div class="table-card">
+        <h3>Detalle diario — ${rows.length} días registrados</h3>
+        <table class="data-table">
+          <thead><tr>
+            <th>Mes</th><th>Fecha</th>
+            <th class="num">Contactos</th><th class="num">Cotizaciones</th>
+            <th class="num">Ventas</th><th class="num">Valor</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r=>`<tr>
+              <td style="color:var(--muted)">${r.mes}</td>
+              <td><strong>${r.fecha}</strong></td>
+              <td class="num">${r.contactos||'—'}</td>
+              <td class="num">${r.cotizaciones||'—'}</td>
+              <td class="num" style="color:${r.ventas>0?c.color:'var(--muted)'}">${r.ventas}</td>
+              <td class="num">${r.valor>0?M(r.valor):'—'}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot><tr>
+            <td colspan="2"><strong>TOTAL</strong></td>
+            <td class="num"><strong>${totalDC||'—'}</strong></td>
+            <td class="num"><strong>${totalDQ||'—'}</strong></td>
+            <td class="num" style="color:${c.color}"><strong>${totalDN}</strong></td>
+            <td class="num"><strong>${M(totalDV)}</strong></td>
+          </tr></tfoot>
+        </table>
+      </div>`;
+    })()}`;
 
   // Wire per-month investment inputs
   function recalcRoasSummary(){
