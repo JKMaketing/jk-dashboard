@@ -989,7 +989,7 @@ function showElReyGeneral(){
     <td class="num" style="color:${pctColor(pctV)}"><strong>${pctV.toFixed(1)}%</strong></td>
   </tr>`;
 
-  const asesoresHTML = d.asesores.filter(a=>a.meta_v>0).map(a=>{
+  const asesoresHTML = d.asesores.filter(a=>a.meta_v>0||a.actual_u>0||a.actual_v>0).map(a=>{
     const pv = a.meta_v>0?(a.actual_v/a.meta_v*100):0;
     return `<tr>
       <td>${a.name}</td>
