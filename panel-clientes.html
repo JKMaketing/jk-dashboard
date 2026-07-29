@@ -263,7 +263,8 @@ function normSede(s){
 function parseMueRow(r){
   const iso=toISO(r[0]);if(!iso)return null;
   const isVenta=/^\s*s/i.test(r[4]||'')||r[4]==='1';
-  return{fecha:iso,vendedor:(r[1]||'').trim().toUpperCase(),sede:normSede(r[2]),origen:(r[3]||'').trim().toUpperCase(),isVenta,producto:(r[5]||'').trim().toUpperCase(),total:pm(r[6]),recaudado:pm(r[7])};
+  // cols: [0]fecha [1]vendedor [2]sede [3]origen [4]venta [5]nPedido [6]producto [7]cedula ... [13]totalVenta [14]saldoPagado [15]saldoCobrar
+  return{fecha:iso,vendedor:(r[1]||'').trim().toUpperCase(),sede:normSede(r[2]),origen:(r[3]||'').trim().toUpperCase(),isVenta,producto:(r[6]||'').trim().toUpperCase(),total:pm(r[13]),recaudado:pm(r[14])};
 }
 
 function parseLiliRow(r){
