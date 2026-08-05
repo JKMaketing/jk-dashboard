@@ -328,10 +328,28 @@ function mergeLiveLili(liliData) {
     }
   });
 
-  // Merge daily breakdown
+  // Merge daily breakdown — never replace existing days, only add/update
   if (!Array.isArray(liliData) && liliData.daily && liliData.daily.length && liliData.monthly?.mes) {
     if (!client.daily) client.daily = {};
-    client.daily[liliData.monthly.mes] = liliData.daily;
+    const mes = liliData.monthly.mes;
+    if (!client.daily[mes]) {
+      client.daily[mes] = liliData.daily;
+    } else {
+      liliData.daily.forEach(incoming => {
+        const idx = client.daily[mes].findIndex(d => d.fecha === incoming.fecha);
+        if (idx >= 0) {
+          client.daily[mes][idx] = incoming;
+        } else {
+          client.daily[mes].push(incoming);
+        }
+      });
+      // Keep chronological order
+      client.daily[mes].sort((a, b) => {
+        const [da, ma] = a.fecha.split('/').map(Number);
+        const [db, mb] = b.fecha.split('/').map(Number);
+        return (ma * 100 + da) - (mb * 100 + db);
+      });
+    }
   }
 }
 
@@ -437,22 +455,21 @@ const CLIENTS = [
       {mes:'Mar 26',contactos:765,cotizaciones:551,ventas:37,valor:42749000},          // ✓
       {mes:'Abr 26',contactos:578,cotizaciones:499,ventas:34,valor:39128000},          // ✓
       {mes:'May 26',contactos:603,cotizaciones:494,ventas:48,valor:64510000},          // ✓
-      {mes:'Jun 26',contactos:236,cotizaciones:184,ventas:24,valor:25884000,parcial:true},// ✓ días 1-12 · live
+      {mes:'Jun 26',contactos:1369,cotizaciones:561,ventas:65,valor:19855645,parcial:true},// ✓ días 1-12 · live
     ],
     daily:{
       'Jun 26':[
-        {fecha:'01/06',contactos:23,cotizaciones:18,ventas:4,valor:4170000},
-        {fecha:'02/06',contactos:25,cotizaciones:20,ventas:2,valor:2830000},
-        {fecha:'03/06',contactos:24,cotizaciones:24,ventas:1,valor:1000000},
-        {fecha:'04/06',contactos:9, cotizaciones:9, ventas:1,valor:170000},
-        {fecha:'05/06',contactos:23,cotizaciones:23,ventas:6,valor:6384000},
-        {fecha:'06/06',contactos:20,cotizaciones:15,ventas:1,valor:280000},
-        {fecha:'07/06',contactos:2, cotizaciones:2, ventas:0,valor:0},
-        {fecha:'08/06',contactos:13,cotizaciones:13,ventas:0,valor:0},
-        {fecha:'09/06',contactos:43,cotizaciones:35,ventas:2,valor:1250000},
-        {fecha:'10/06',contactos:27,cotizaciones:20,ventas:2,valor:2150000},
-        {fecha:'11/06',contactos:27,cotizaciones:25,ventas:2,valor:3600000},
-        {fecha:'12/06',contactos:0, cotizaciones:0, ventas:3,valor:4050000},
+        {fecha:'01/06',contactos:88, cotizaciones:39,ventas:5,valor:1656985},
+        {fecha:'02/06',contactos:92, cotizaciones:52,ventas:3,valor:1115090},
+        {fecha:'03/06',contactos:110,cotizaciones:73,ventas:5,valor:1629400},
+        {fecha:'04/06',contactos:96, cotizaciones:44,ventas:7,valor:2081280},
+        {fecha:'05/06',contactos:125,cotizaciones:65,ventas:9,valor:3000875},
+        {fecha:'06/06',contactos:179,cotizaciones:72,ventas:7,valor:1889275},
+        {fecha:'07/06',contactos:0,  cotizaciones:0, ventas:0,valor:269900},
+        {fecha:'09/06',contactos:188,cotizaciones:59,ventas:7,valor:2198780},
+        {fecha:'10/06',contactos:160,cotizaciones:42,ventas:2,valor:636295},
+        {fecha:'11/06',contactos:142,cotizaciones:63,ventas:11,valor:3023780},
+        {fecha:'12/06',contactos:189,cotizaciones:52,ventas:9,valor:2353985},
       ]
     },
     asesores_daily:{

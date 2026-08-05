@@ -232,39 +232,46 @@ function getLiliKpisData() {
 
   const ss = SpreadsheetApp.openById(SHEETS.liliKpis.id);
 
-  // Find DASHBOARD tab (case-insensitive)
+  // Read MARKETING_DIARIO tab directly — more reliable than formula-driven DASHBOARD
   let sh = null;
   ss.getSheets().forEach(s => {
-    if (s.getName().toUpperCase() === 'DASHBOARD') sh = s;
+    const n = s.getName().toUpperCase().replace(/[\s_]/g, '');
+    if (n === 'MARKETINGDIARIO' || n === 'MARKETING_DIARIO') sh = s;
   });
   if (!sh) return { daily: [], monthly: {} };
 
   const rows = sh.getDataRange().getValues();
 
-  // Find the CONSOLIDATED daily table:
-  // Header: Fecha | Contactos | Cotizaciones | Ventas | Valor | Ticket | WhatsApp | Instagram | ...
-  // (NOT the one with "Ventas registradas" — we want col3 = "VENTAS" exactly)
+  // Header: Fecha | Contactos | Cotizaciones | Ventas registradas | Ventas WhatsApp | Ventas Instagram | Valor total de venta | Anotaciones | ...
   let headerRow = -1;
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const c0 = cleanStr(r[0]).toUpperCase();
     const c1 = cleanStr(r[1]).toUpperCase();
-    const c3 = cleanStr(r[3]).toUpperCase();
-    const c4 = cleanStr(r[4]).toUpperCase();
-    if (c0 === 'FECHA' && c1 === 'CONTACTOS' && c3 === 'VENTAS' && c4 === 'VALOR') {
-      headerRow = i;
-      // Keep scanning — we want the LAST such header (consolidated table comes after registradas)
-    }
+    if (c0 === 'FECHA' && c1 === 'CONTACTOS') { headerRow = i; break; }
   }
   if (headerRow < 0) return { daily: [], monthly: {} };
 
   const hdr = rows[headerRow].map(v => cleanStr(v).toUpperCase());
   const iC   = hdr.indexOf('CONTACTOS');
   const iQ   = hdr.indexOf('COTIZACIONES');
-  const iV   = hdr.indexOf('VENTAS');
-  const iVal = hdr.indexOf('VALOR');
-  const iWA  = hdr.indexOf('WHATSAPP');
-  const iIG  = hdr.indexOf('INSTAGRAM');
+  // "Ventas registradas" = total ventas (col 3); also try plain "VENTAS"
+  let iV = hdr.findIndex((h,i) => i >= 3 && (h === 'VENTAS' || h.startsWith('VENTAS R')));
+  if (iV < 0) iV = 3;
+  // "Valor total de venta" (col 6); also try plain "VALOR"
+  let iVal = hdr.findIndex((h,i) => i >= 4 && (h === 'VALOR' || h.startsWith('VALOR T') || h.startsWith('VALOR TOTAL')));
+  if (iVal < 0) iVal = 6;
+  const iWA  = hdr.findIndex(h => h.includes('WHATSAPP'));
+  const iIG  = hdr.findIndex(h => h.includes('INSTAGRAM'));
+
+  function parseFechaLili(raw) {
+    if (raw instanceof Date) return raw;
+    const s = String(raw).trim();
+    // dd/mm/yyyy
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) return new Date(parseInt(m[3]), parseInt(m[2])-1, parseInt(m[1]));
+    return new Date(s);
+  }
 
   const daily = [];
   let totC = 0, totQ = 0, totV = 0, totVal = 0;
@@ -275,22 +282,22 @@ function getLiliKpisData() {
     const rawFecha = r[0];
     if (!rawFecha) continue;
 
-    let dateObj = rawFecha instanceof Date ? rawFecha : new Date(rawFecha);
+    const dateObj = parseFechaLili(rawFecha);
     if (isNaN(dateObj)) continue;
 
-    const v   = cleanNum(r[iV]);
-    const val = cleanNum(r[iVal]);
     const c   = cleanNum(r[iC]);
     const q   = cleanNum(r[iQ]);
+    const v   = cleanNum(r[iV]);
+    const val = cleanNum(r[iVal]);
 
-    // Skip completely empty days (no contacts and no sales)
+    // Skip rows with no data at all
     if (c === 0 && v === 0 && val === 0) continue;
 
     const fechaStr = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'dd/MM');
     if (!mesLabel) {
-      const m = dateObj.getMonth() + 1;
-      const y = String(dateObj.getFullYear()).slice(2);
-      mesLabel = MES_MAP[m] + ' ' + y;
+      const mo = dateObj.getMonth() + 1;
+      const y  = String(dateObj.getFullYear()).slice(2);
+      mesLabel = MES_MAP[mo] + ' ' + y;
     }
 
     daily.push({
