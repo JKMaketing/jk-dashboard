@@ -178,21 +178,33 @@ const SHEETS={
 const MES_ES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 const MES_SHORT=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
+// Inversión mensual fija en ads (COP) por cliente
+const INVERSION_FIJA={
+  imperial:  1000000,
+  elrey:     2400000,
+  col_car:   2000000,
+  col_cer:   6000000,
+  lili:      2000000,
+  stetic:    450000,
+  // ensifera: inversión real extraída del dashboard
+};
+
 const CLIENTS=[
-  {id:'imperial',  name:'Muebles Imperial',  sub:'Jamundí',  icon:'🛋', cc:'#9b6dff', sheet:'muebles',   type:'muebles', sede:'JAMUNDÍ'},
-  {id:'elrey',     name:'Muebles El Rey',     sub:'Cerritos', icon:'🪑', cc:'#f0b429', sheet:'muebles',   type:'muebles', sede:'CERRITOS'},
-  {id:'col_car',   name:'Colchones El Rey',   sub:'Cartago',  icon:'🛏', cc:'#3ecf8e', sheet:'colchones', type:'muebles', sede:'CARTAGO'},
-  {id:'col_cer',   name:'Colchones El Rey',   sub:'Cerritos', icon:'🛏', cc:'#4da6ff', sheet:'colchones', type:'muebles', sede:'CERRITOS'},
-  {id:'lili',      name:'Lili Valencia',      sub:'Online',   icon:'👠', cc:'#ff6b9d', sheet:'lili',      type:'lili'},
-  {id:'stetic',    name:'Valencia Stetic',    sub:'Cali',     icon:'💆', cc:'#ff8c42', sheet:'stetic',    type:'stetic'},
+  {id:'imperial',  name:'Muebles Imperial',  sub:'Jamundí',       icon:'🛋', cc:'#9b6dff', sheet:'muebles',   type:'muebles',  sede:'JAMUNDÍ'},
+  {id:'elrey',     name:'Muebles El Rey',     sub:'Cerritos',      icon:'🪑', cc:'#f0b429', sheet:'muebles',   type:'muebles',  sede:'CERRITOS'},
+  {id:'col_car',   name:'Colchones El Rey',   sub:'Cartago',       icon:'🛏', cc:'#3ecf8e', sheet:'colchones', type:'muebles',  sede:'CARTAGO'},
+  {id:'col_cer',   name:'Colchones El Rey',   sub:'Pereira',       icon:'🛏', cc:'#4da6ff', sheet:'colchones', type:'muebles',  sede:'CERRITOS'},
+  {id:'lili',      name:'Lili Valencia',      sub:'Online',        icon:'👠', cc:'#ff6b9d', sheet:'lili',      type:'lili'},
+  {id:'stetic',    name:'Valencia Stetic',    sub:'Cali',          icon:'💆', cc:'#ff8c42', sheet:'stetic',    type:'stetic'},
+  {id:'ensifera',  name:'Ensífera',           sub:'Col. Aviturismo',icon:'🦜', cc:'#81c784', type:'ensifera'},
 ];
 
 // ============================================================
 // STATE
 // ============================================================
 const ST={
-  raw:{muebles:null,colchones:null,lili:null,stetic:null},
-  loading:{muebles:true,colchones:true,lili:true,stetic:true},
+  raw:{muebles:null,colchones:null,lili:null,stetic:null,ensifera:null},
+  loading:{muebles:true,colchones:true,lili:true,stetic:true,ensifera:true},
   errors:{},
   view:'home',
   from:'',to:'',
@@ -299,7 +311,8 @@ async function fetchMonthlySh(sheetKey,parserFn){
   const seen={};let all=[];
   texts.forEach(tx=>{
     if(!tx||tx.trim().length<20)return;
-    if(seen[tx])return;seen[tx]=1;
+    const fp=tx.slice(0,300); // fingerprint — avoids gviz micro-variations bloating dedup key
+    if(seen[fp])return;seen[fp]=1;
     const rows=parseCSV(tx);
     for(let i=1;i<rows.length;i++){const p=parserFn(rows[i]);if(p)all.push(p);}
   });
@@ -331,10 +344,20 @@ async function fetchStetic(){
   return all;
 }
 
+async function fetchEnsifera(){
+  try{
+    const tx=await fetch('https://jkmaketing.github.io/ensifera-dashboard/?t='+Date.now())
+      .then(r=>r.ok?r.text():'').catch(()=>'');
+    if(!tx)return null;
+    const m=tx.match(/const DATA\s*=\s*(\{[\s\S]*?\});\s*\n/);
+    return m?JSON.parse(m[1]):null;
+  }catch(e){return null;}
+}
+
 async function syncAll(){
   if(ST.syncing)return;
   ST.syncing=true;
-  ST.loading={muebles:true,colchones:true,lili:true,stetic:true};
+  ST.loading={muebles:true,colchones:true,lili:true,stetic:true,ensifera:true};
   updateDot('loading');
   renderCurrent();
 
@@ -343,6 +366,7 @@ async function syncAll(){
     fetchMonthlySh('colchones',parseMueRow).then(d=>{ST.raw.colchones=d;ST.loading.colchones=false;}).catch(e=>{ST.errors.colchones=e;ST.loading.colchones=false;}),
     fetchLili().then(d=>{ST.raw.lili=d;ST.loading.lili=false;}).catch(e=>{ST.errors.lili=e;ST.loading.lili=false;}),
     fetchStetic().then(d=>{ST.raw.stetic=d;ST.loading.stetic=false;}).catch(e=>{ST.errors.stetic=e;ST.loading.stetic=false;}),
+    fetchEnsifera().then(d=>{ST.raw.ensifera=d;ST.loading.ensifera=false;}).catch(e=>{ST.errors.ensifera=e;ST.loading.ensifera=false;}),
   ]);
 
   ST.syncing=false;ST.lastSync=Date.now();
@@ -428,7 +452,23 @@ function aggStetic(rows){
   };
 }
 
+function aggEnsifera(data,from,to){
+  if(!data||!data.days)return{total:0,inversion:0,n:0,ticket:0,roas:null,byDay:[],campaigns:[]};
+  const days=data.days.filter(d=>d.date>=from&&d.date<=to);
+  const total=days.reduce((s,d)=>s+(d.salesCOP||0),0);
+  const inversion=days.reduce((s,d)=>s+(d.spendCOP||0),0);
+  const n=days.reduce((s,d)=>s+(d.resultsAds||d.conversations||0),0);
+  const roas=inversion>0?total/inversion:null;
+  const byDay=days.map(d=>({name:d.date,val:d.salesCOP||0}));
+  // aggregate campaigns across days
+  const campMap={};
+  days.forEach(d=>(d.campaigns||[]).forEach(c=>{if(!campMap[c.name])campMap[c.name]={name:c.name,val:0,spend:0};campMap[c.name].val+=c.results||0;campMap[c.name].spend+=c.spendCOP||0;}));
+  const campaigns=Object.values(campMap).sort((a,b)=>b.spend-a.spend);
+  return{total,inversion,n,ticket:n>0?total/n:0,roas,byDay,campaigns,rows:[]};
+}
+
 function clientAgg(cfg,from,to){
+  if(cfg.type==='ensifera')return aggEnsifera(ST.raw.ensifera,from,to);
   const rows=filterRows(ST.raw[cfg.sheet],from,to);
   if(cfg.type==='muebles')return aggMuebles(rows,cfg.sede);
   if(cfg.type==='lili')return aggLili(rows);
@@ -503,7 +543,8 @@ function renderHome(){
   let totCart=0,totV=0;
 
   const cards=CLIENTS.map(cfg=>{
-    if(ST.loading[cfg.sheet]){
+    const isLoading=cfg.type==='ensifera'?ST.loading.ensifera:ST.loading[cfg.sheet];
+    if(isLoading){
       return`<div class="ccard" style="--cc:${cfg.cc};cursor:default">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
           <span style="font-size:22px">${cfg.icon}</span>
@@ -520,6 +561,19 @@ function renderHome(){
     const pb=p==null?'':`<span class="bdg ${p>=0?'up':'dn'}">${p>=0?'↑':'↓'}${Math.abs(p).toFixed(1)}%</span>`;
     totCart+=agg.total||0;totV+=agg.n||0;
 
+    // ROAS for home card
+    let roasHtml='';
+    if(cfg.type==='ensifera'&&agg.roas!=null){
+      const rc=agg.roas>=3?'var(--green)':agg.roas>=1.5?'var(--gold)':'var(--red)';
+      roasHtml=`<div><div class="ck-lbl">ROAS</div><div class="ck-val" style="color:${rc}">${agg.roas.toFixed(2)}×</div></div>
+        <div><div class="ck-lbl">Inversión</div><div class="ck-val">${fmt(agg.inversion||0)}</div></div>`;
+    } else if(INVERSION_FIJA[cfg.id]){
+      const inv=INVERSION_FIJA[cfg.id];
+      const roas=agg.total>0?agg.total/inv:null;
+      if(roas!=null){const rc=roas>=3?'var(--green)':roas>=1.5?'var(--gold)':'var(--red)';roasHtml=`<div><div class="ck-lbl">ROAS</div><div class="ck-val" style="color:${rc}">${roas.toFixed(2)}×</div></div>`;}
+    }
+
+    const hasErr=cfg.type==='ensifera'?ST.errors.ensifera:ST.errors[cfg.sheet];
     return`<div class="ccard" style="--cc:${cfg.cc}" onclick="drillDown('${cfg.id}')">
       <div class="ccard-head">
         <div><div class="cname">${cfg.name}</div><div class="csub">${cfg.sub}</div></div>
@@ -528,12 +582,12 @@ function renderHome(){
       <div class="ctotal">${fmt(agg.total||0)}</div>
       <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--ink2)">${dl}</span>${pb}</div>
       <div class="ckpis">
-        <div><div class="ck-lbl">Ventas</div><div class="ck-val">${agg.n||0}</div></div>
+        <div><div class="ck-lbl">Conversiones</div><div class="ck-val">${agg.n||0}</div></div>
         <div><div class="ck-lbl">Ticket</div><div class="ck-val">${fmt(agg.ticket||0)}</div></div>
         ${cfg.type==='muebles'?`<div><div class="ck-lbl">Recaudado</div><div class="ck-val" style="color:var(--green)">${fmt(agg.recaudado||0)}</div></div>
-        <div><div class="ck-lbl">Saldo</div><div class="ck-val" style="color:var(--gold)">${fmt(agg.saldo||0)}</div></div>`:''}
+        <div><div class="ck-lbl">Saldo</div><div class="ck-val" style="color:var(--gold)">${fmt(agg.saldo||0)}</div></div>`:roasHtml}
       </div>
-      <div class="cfoot"><span>${ST.errors[cfg.sheet]?'⚠ Error sync':'● En vivo'}</span><span class="ccta">Ver detalle →</span></div>
+      <div class="cfoot"><span>${hasErr?'⚠ Error sync':'● En vivo'}</span><span class="ccta">Ver detalle →</span></div>
     </div>`;
   });
 
@@ -560,16 +614,18 @@ function renderDetail(cid){
 
   // ROAS
   const am=ST.adsMonth;
-  const inv=getAdv(cid,am);
+  const isEnsifera=cfg.type==='ensifera';
+  const inv=isEnsifera?(agg.inversion||0):(INVERSION_FIJA[cid]||getAdv(cid,am));
   let pauta=0;
   if(cfg.type==='muebles'){pauta=(agg.byOrigen||[]).filter(x=>x.name.startsWith('PAUTA')).reduce((s,x)=>s+x.val,0);}
+  else if(isEnsifera){pauta=agg.total||0;}
   else{pauta=agg.total||0;}
-  const roas=calcRoas(pauta,inv);
+  const roas=isEnsifera&&agg.roas!=null?agg.roas:calcRoas(pauta,inv);
   const cpv=inv&&agg.n?inv/agg.n:null;
   const roasColor=roas?roas>=3?'var(--green)':roas>=1.5?'var(--gold)':'var(--red)':'var(--ink2)';
 
-  // Month tabs (last 6)
-  const allR=ST.raw[cfg.sheet]||[];
+  // Month tabs (last 6) — not applicable for Ensifera
+  const allR=isEnsifera?[]:(ST.raw[cfg.sheet]||[]);
   const months=[...new Set(allR.map(r=>r.fecha?.slice(0,7)))].filter(Boolean).sort().reverse().slice(0,6);
   const mtabs=months.map(m=>{const[y,mo]=m.split('-');return`<button class="mtab ${m===am?'on':''}" onclick="ST.adsMonth='${m}';renderCurrent()">${MES_SHORT[+mo-1]} ${y}</button>`;}).join('');
 
@@ -611,6 +667,26 @@ function renderDetail(cid){
           <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">No shows</div><div style="font-size:22px;font-weight:800;color:var(--red)">${agg.noShow||0}</div></div>
           <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Chats</div><div style="font-size:22px;font-weight:800">${agg.totalChats||0}</div></div>
         </div>
+      </div>
+    </div>`;
+  } else if(cfg.type==='ensifera'){
+    const camps=agg.campaigns||[];
+    const campRows=camps.map(c=>{
+      const r=c.val||0;const sp=c.spend||0;const cr=sp>0?((c.val||0)/(sp/1000000)):null;
+      return`<tr><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</td>
+        <td style="text-align:right">${r}</td>
+        <td style="text-align:right">${fmtF(sp)}</td>
+        <td style="text-align:right;color:${cr==null?'var(--ink2)':cr>=3?'var(--green)':cr>=1.5?'var(--gold)':'var(--red)'}">${cr!=null?cr.toFixed(2)+'×':'—'}</td></tr>`;
+    }).join('');
+    specific=`<div class="dgrid">
+      <div class="sec"><div class="sec-ttl">Tendencia diaria inversión vs ventas</div>
+        ${trendChart(agg.byDay||[],cfg.cc)}
+      </div>
+      <div class="sec"><div class="sec-ttl">Campañas <span>periodo seleccionado</span></div>
+        ${camps.length?`<div class="twrap"><table>
+          <thead><tr><th>Campaña</th><th style="text-align:right">Resultados</th><th style="text-align:right">Inversión</th><th style="text-align:right">ROAS</th></tr></thead>
+          <tbody>${campRows}</tbody>
+        </table></div>`:'<p style="color:var(--ink3);font-size:13px">Sin datos de campañas.</p>'}
       </div>
     </div>`;
   }
@@ -655,7 +731,7 @@ function renderDetail(cid){
   <div class="krow">
     <div class="ktile"><div class="kt-lbl">Venta total</div><div class="kt-val">${fmt(agg.total||0)}</div>
       <div class="kt-sub">${p!=null?`<span style="color:${p>=0?'var(--green)':'var(--red)'}">${fmtPct(p)}</span> vs periodo ant.`:''}</div></div>
-    <div class="ktile"><div class="kt-lbl">Ventas / Pedidos</div><div class="kt-val">${agg.n||0}</div>
+    <div class="ktile"><div class="kt-lbl">${isEnsifera?'Conversiones':'Ventas / Pedidos'}</div><div class="kt-val">${agg.n||0}</div>
       <div class="kt-sub">${aggP.n?`Anterior: ${aggP.n}`:''}</div></div>
     <div class="ktile"><div class="kt-lbl">Ticket promedio</div><div class="kt-val">${fmt(agg.ticket||0)}</div>
       <div class="kt-sub">${aggP.ticket?`Ant: ${fmt(aggP.ticket)}`:''}</div></div>
@@ -682,17 +758,27 @@ function renderDetail(cid){
   ${specific}
 
   <div class="sec" style="margin-bottom:12px">
-    <div class="sec-ttl">Inversión en Ads · ROAS <span>guardado en este navegador</span></div>
+    ${isEnsifera?`
+    <div class="sec-ttl">Inversión en Ads · ROAS <span>datos en vivo desde Ensífera Dashboard</span></div>
+    <div class="roas-grid">
+      <div class="rrow">
+        <div class="r-lbl">Inversión real (Meta Ads)</div>
+        <div style="font-size:22px;font-weight:800;margin:6px 0">${fmtF(agg.inversion||0)}</div>
+        <div class="rres"><span>ROAS</span><span class="rresv" style="color:${roasColor}">${roas?roas.toFixed(2)+'×':'—'}</span></div>
+        <div class="rres" style="margin-top:3px"><span>Costo × conversión</span><span class="rresv">${cpv?fmtF(cpv):'—'}</span></div>
+      </div>
+      <div class="rrow" style="display:flex;flex-direction:column;justify-content:center">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:6px">Ventas atribuidas (periodo)</div>
+        <div style="font-size:22px;font-weight:800">${fmt(agg.total||0)}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:4px">ROAS = venta ÷ inversión real</div>
+      </div>
+    </div>`:`
+    <div class="sec-ttl">Inversión en Ads · ROAS <span>inversión fija mensual</span></div>
     <div class="mtabs">${mtabs}</div>
     <div class="roas-grid">
       <div class="rrow">
-        <div class="r-lbl">Inversión ${am}</div>
-        <div class="rinput-w">
-          <span style="color:var(--ink2);font-size:13px">$</span>
-          <input class="rinput" type="text" inputmode="numeric" placeholder="0"
-            value="${(ST.ads[cid]||{})[am]||''}"
-            oninput="setAdv('${cid}','${am}',this.value);renderCurrent()">
-        </div>
+        <div class="r-lbl">Inversión mensual fija</div>
+        <div style="font-size:22px;font-weight:800;margin:6px 0;color:var(--ink1)">${fmtF(INVERSION_FIJA[cid]||0)}</div>
         <div class="rres"><span>ROAS</span><span class="rresv" style="color:${roasColor}">${roas?roas.toFixed(2)+'×':'—'}</span></div>
         <div class="rres" style="margin-top:3px"><span>Costo × venta</span><span class="rresv">${cpv?fmtF(cpv):'—'}</span></div>
       </div>
@@ -703,13 +789,13 @@ function renderDetail(cid){
         <div style="font-size:22px;font-weight:800">${fmt(pauta)}</div>
         <div style="font-size:11px;color:var(--ink3);margin-top:4px">ROAS = venta ÷ inversión</div>
       </div>
-    </div>
+    </div>`}
   </div>
 
-  <div class="sec">
+  ${isEnsifera?'':`<div class="sec">
     <div class="sec-ttl">Detalle de pedidos <span>últimos 50</span></div>
     ${tbl}
-  </div>`;
+  </div>`}`;
 }
 
 // ============================================================
