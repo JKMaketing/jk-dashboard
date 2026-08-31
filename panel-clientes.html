@@ -175,6 +175,7 @@ const SHEETS={
   lili:'1DQO1nI8ucA8eiEGPKtxCk0PfTBJC3PMWWC8Zu5AWqqk',
   stetic:'1kS6p77KnWTO5KKM5OezklTgi219TMRT5aZtqahYu2YU',
 };
+const LILI_TRACKING_URL='https://docs.google.com/spreadsheets/d/1DQO1nI8ucA8eiEGPKtxCk0PfTBJC3PMWWC8Zu5AWqqk/export?format=csv&gid=320870210';
 const MES_ES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 const MES_SHORT=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -203,7 +204,7 @@ const CLIENTS=[
 // STATE
 // ============================================================
 const ST={
-  raw:{muebles:null,colchones:null,lili:null,stetic:null,ensifera:null},
+  raw:{muebles:null,colchones:null,lili:null,liliTracking:null,stetic:null,ensifera:null},
   loading:{muebles:true,colchones:true,lili:true,stetic:true,ensifera:true},
   errors:{},
   view:'home',
@@ -286,6 +287,19 @@ function parseLiliRow(r){
   return{fecha:iso,cliente:(r[1]||'').trim(),ciudad:(r[2]||'').trim().toUpperCase(),total,metodoPago:(r[7]||'').trim()||'Otro',canal:(r[8]||'').trim()||'Otro',tipo:(r[9]||'').trim()||'Otro',referencia:(r[11]||'').trim()||'—',estado:(r[17]||'').trim()||'Sin estado',asesor:(r[18]||'').trim()||'Sin asesor',valida};
 }
 
+function parseLiliTracking(content){
+  const lines=content.split('\n');const rows=[];
+  for(const line of lines){
+    const m=line.match(/\|?\s*(20\d\d-\d{2}-\d{2})\s*\|(.*)/);
+    if(!m)continue;
+    const cells=m[2].split('|').map(s=>s.trim());
+    const pi=s=>parseInt((s||'').replace(/[^0-9]/g,''))||0;
+    const pf=s=>parseFloat((s||'').replace(/[^0-9.]/g,''))||0;
+    rows.push({date:m[1],c_acum:pi(cells[7]),q_acum:pi(cells[8]),v_acum:pi(cells[9]),val_acum:pf(cells[10])});
+  }
+  return rows.sort((a,b)=>a.date.localeCompare(b.date));
+}
+
 function parseSteticRow(r){
   const iso=toISO(r[0]);if(!iso)return null;
   const servicio=(r[4]||'').trim();
@@ -328,6 +342,11 @@ async function fetchLili(){
   return out;
 }
 
+async function fetchLiliTracking(){
+  const tx=await fetch(LILI_TRACKING_URL+'&t='+Date.now()).then(r=>r.ok?r.text():'').catch(()=>'');
+  return tx?parseLiliTracking(tx):[];
+}
+
 async function fetchStetic(){
   const id=SHEETS.stetic;const t=Date.now();
   // Try monthly tabs + default sheet; deduplicate
@@ -364,7 +383,10 @@ async function syncAll(){
   await Promise.all([
     fetchMonthlySh('muebles',parseMueRow).then(d=>{ST.raw.muebles=d;ST.loading.muebles=false;}).catch(e=>{ST.errors.muebles=e;ST.loading.muebles=false;}),
     fetchMonthlySh('colchones',parseMueRow).then(d=>{ST.raw.colchones=d;ST.loading.colchones=false;}).catch(e=>{ST.errors.colchones=e;ST.loading.colchones=false;}),
-    fetchLili().then(d=>{ST.raw.lili=d;ST.loading.lili=false;}).catch(e=>{ST.errors.lili=e;ST.loading.lili=false;}),
+    Promise.all([
+      fetchLili().then(d=>{ST.raw.lili=d;}).catch(()=>{}),
+      fetchLiliTracking().then(d=>{ST.raw.liliTracking=d;}).catch(()=>{}),
+    ]).then(()=>{ST.loading.lili=false;}).catch(e=>{ST.errors.lili=e;ST.loading.lili=false;}),
     fetchStetic().then(d=>{ST.raw.stetic=d;ST.loading.stetic=false;}).catch(e=>{ST.errors.stetic=e;ST.loading.stetic=false;}),
     fetchEnsifera().then(d=>{ST.raw.ensifera=d;ST.loading.ensifera=false;}).catch(e=>{ST.errors.ensifera=e;ST.loading.ensifera=false;}),
   ]);
@@ -421,12 +443,32 @@ function aggMuebles(rows,sede){
   };
 }
 
-function aggLili(rows){
-  const base=rows.filter(r=>r.valida&&r.total>0);
-  const total=base.reduce((s,r)=>s+r.total,0);
-  const n=base.length;
+function aggLiliTracking(trackingRows,from,to){
+  if(!trackingRows||!trackingRows.length)return null;
+  const inRange=trackingRows.filter(r=>r.date>=from&&r.date<=to);
+  if(!inRange.length)return null;
+  const last=inRange[inRange.length-1];
+  const fromMonth=from.slice(0,7);
+  const prevRows=trackingRows.filter(r=>r.date<from&&r.date.startsWith(fromMonth));
+  const prev=prevRows.length?prevRows[prevRows.length-1]:null;
   return{
-    total,n,ticket:n?total/n:0,
+    contactos:last.c_acum-(prev?prev.c_acum:0),
+    cotizaciones:last.q_acum-(prev?prev.q_acum:0),
+    ventas:last.v_acum-(prev?prev.v_acum:0),
+    valor:last.val_acum-(prev?prev.val_acum:0),
+  };
+}
+
+function aggLili(rows,trackingRows,from,to){
+  const base=rows?rows.filter(r=>r.valida&&r.total>0):[];
+  const trk=aggLiliTracking(trackingRows,from,to);
+  const total=trk?trk.valor:base.reduce((s,r)=>s+r.total,0);
+  const n=trk?trk.ventas:base.length;
+  const contactos=trk?trk.contactos:null;
+  const cotizaciones=trk?trk.cotizaciones:null;
+  const conv=contactos>0?n/contactos:null;
+  return{
+    total,n,ticket:n?total/n:0,contactos,cotizaciones,conv,
     byCanal:groupBy(base,r=>r.canal,r=>r.total),
     byMetodo:groupBy(base,r=>r.metodoPago,r=>r.total),
     byCiudad:groupBy(base,r=>r.ciudad,r=>r.total),
@@ -471,7 +513,7 @@ function clientAgg(cfg,from,to){
   if(cfg.type==='ensifera')return aggEnsifera(ST.raw.ensifera,from,to);
   const rows=filterRows(ST.raw[cfg.sheet],from,to);
   if(cfg.type==='muebles')return aggMuebles(rows,cfg.sede);
-  if(cfg.type==='lili')return aggLili(rows);
+  if(cfg.type==='lili')return aggLili(rows,ST.raw.liliTracking,from,to);
   if(cfg.type==='stetic')return aggStetic(rows);
   return{total:0,n:0,ticket:0};
 }
@@ -733,6 +775,10 @@ function renderDetail(cid){
       <div class="kt-sub">${p!=null?`<span style="color:${p>=0?'var(--green)':'var(--red)'}">${fmtPct(p)}</span> vs periodo ant.`:''}</div></div>
     <div class="ktile"><div class="kt-lbl">${isEnsifera?'Conversiones':'Ventas / Pedidos'}</div><div class="kt-val">${agg.n||0}</div>
       <div class="kt-sub">${aggP.n?`Anterior: ${aggP.n}`:''}</div></div>
+    ${cfg.type==='lili'&&agg.contactos!=null?`<div class="ktile"><div class="kt-lbl">Contactos</div><div class="kt-val">${agg.contactos}</div>
+      <div class="kt-sub">${agg.cotizaciones!=null?`Cotiz: ${agg.cotizaciones}`:''}</div></div>
+    <div class="ktile"><div class="kt-lbl">Conversión</div><div class="kt-val" style="color:${agg.conv>=0.07?'var(--green)':agg.conv>=0.04?'var(--gold)':'var(--red)'}">${agg.conv!=null?(agg.conv*100).toFixed(1)+'%':'—'}</div>
+      <div class="kt-sub">Contactos → ventas</div></div>`:''}
     <div class="ktile"><div class="kt-lbl">Ticket promedio</div><div class="kt-val">${fmt(agg.ticket||0)}</div>
       <div class="kt-sub">${aggP.ticket?`Ant: ${fmt(aggP.ticket)}`:''}</div></div>
     ${cfg.type==='muebles'?`<div class="ktile"><div class="kt-lbl">Recaudado</div><div class="kt-val grn">${fmt(agg.recaudado||0)}</div>
