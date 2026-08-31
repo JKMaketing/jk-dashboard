@@ -447,15 +447,13 @@ function aggLiliTracking(trackingRows,from,to){
   if(!trackingRows||!trackingRows.length)return null;
   const inRange=trackingRows.filter(r=>r.date>=from&&r.date<=to);
   if(!inRange.length)return null;
-  const last=inRange[inRange.length-1];
-  const fromMonth=from.slice(0,7);
-  const prevRows=trackingRows.filter(r=>r.date<from&&r.date.startsWith(fromMonth));
-  const prev=prevRows.length?prevRows[prevRows.length-1]:null;
+  const first=inRange[0];const last=inRange[inRange.length-1];
+  // Use last−first: first row of range acts as baseline (matches dashboard-lili-valencia)
   return{
-    contactos:last.c_acum-(prev?prev.c_acum:0),
-    cotizaciones:last.q_acum-(prev?prev.q_acum:0),
-    ventas:last.v_acum-(prev?prev.v_acum:0),
-    valor:last.val_acum-(prev?prev.val_acum:0),
+    contactos:last.c_acum-first.c_acum,
+    cotizaciones:last.q_acum-first.q_acum,
+    ventas:last.v_acum-first.v_acum,
+    valor:last.val_acum-first.val_acum,
   };
 }
 
