@@ -288,16 +288,16 @@ function parseLiliRow(r){
 }
 
 function parseLiliTracking(content){
-  const lines=content.split('\n');const rows=[];
-  for(const line of lines){
-    const m=line.match(/\|?\s*(20\d\d-\d{2}-\d{2})\s*\|(.*)/);
-    if(!m)continue;
-    const cells=m[2].split('|').map(s=>s.trim());
-    const pi=s=>parseInt((s||'').replace(/[^0-9]/g,''))||0;
-    const pf=s=>parseFloat((s||'').replace(/[^0-9.]/g,''))||0;
-    rows.push({date:m[1],c_acum:pi(cells[7]),q_acum:pi(cells[8]),v_acum:pi(cells[9]),val_acum:pf(cells[10])});
+  // CSV cols: [0]Fecha [8]Contactos acum. [9]Cotizaciones acum. [10]Ventas acum. [11]Valor acum.
+  const rows=parseCSV(content);if(rows.length<2)return[];
+  const pi=s=>parseInt((s||'').replace(/[^0-9]/g,''))||0;
+  const out=[];
+  for(let i=1;i<rows.length;i++){
+    const r=rows[i];const date=(r[0]||'').trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
+    out.push({date,c_acum:pi(r[8]),q_acum:pi(r[9]),v_acum:pi(r[10]),val_acum:pi(r[11])});
   }
-  return rows.sort((a,b)=>a.date.localeCompare(b.date));
+  return out.sort((a,b)=>a.date.localeCompare(b.date));
 }
 
 function parseSteticRow(r){
