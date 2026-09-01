@@ -196,7 +196,7 @@ const CLIENTS=[
   {id:'col_car',   name:'Colchones El Rey',   sub:'Cartago',       icon:'🛏', cc:'#3ecf8e', sheet:'colchones', type:'muebles',  sede:'CARTAGO'},
   {id:'col_cer',   name:'Colchones El Rey',   sub:'Pereira',       icon:'🛏', cc:'#4da6ff', sheet:'colchones', type:'muebles',  sede:'CERRITOS'},
   {id:'lili',      name:'Lili Valencia',      sub:'Online',        icon:'👠', cc:'#ff6b9d', sheet:'lili',      type:'lili'},
-  {id:'stetic',    name:'Valencia Stetic',    sub:'Cali',          icon:'💆', cc:'#ff8c42', sheet:'stetic',    type:'stetic'},
+  {id:'stetic',    name:'Valencia Stetic',    sub:'Pereira',       icon:'💆', cc:'#ff8c42', sheet:'stetic',    type:'stetic'},
   {id:'ensifera',  name:'Ensífera',           sub:'Col. Aviturismo',icon:'🦜', cc:'#81c784', type:'ensifera'},
 ];
 
@@ -447,13 +447,16 @@ function aggLiliTracking(trackingRows,from,to){
   if(!trackingRows||!trackingRows.length)return null;
   const inRange=trackingRows.filter(r=>r.date>=from&&r.date<=to);
   if(!inRange.length)return null;
-  const first=inRange[0];const last=inRange[inRange.length-1];
-  // Use last−first: first row of range acts as baseline (matches dashboard-lili-valencia)
+  const last=inRange[inRange.length-1];
+  // Use last row before 'from' as baseline — correctly includes all days in range
+  // (val_acum is a running total so typo-date rows in the sheet are still captured)
+  const prevRows=trackingRows.filter(r=>r.date<from);
+  const prev=prevRows.length?prevRows[prevRows.length-1]:null;
   return{
-    contactos:last.c_acum-first.c_acum,
-    cotizaciones:last.q_acum-first.q_acum,
-    ventas:last.v_acum-first.v_acum,
-    valor:last.val_acum-first.val_acum,
+    contactos:last.c_acum-(prev?prev.c_acum:0),
+    cotizaciones:last.q_acum-(prev?prev.q_acum:0),
+    ventas:last.v_acum-(prev?prev.v_acum:0),
+    valor:last.val_acum-(prev?prev.val_acum:0),
   };
 }
 
@@ -622,10 +625,10 @@ function renderHome(){
       <div class="ctotal">${fmt(agg.total||0)}</div>
       <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--ink2)">${dl}</span>${pb}</div>
       <div class="ckpis">
-        <div><div class="ck-lbl">Conversiones</div><div class="ck-val">${agg.n||0}</div></div>
+        <div><div class="ck-lbl">${cfg.type==='lili'?'Ventas':'Conversiones'}</div><div class="ck-val">${agg.n||0}</div></div>
         <div><div class="ck-lbl">Ticket</div><div class="ck-val">${fmt(agg.ticket||0)}</div></div>
         ${cfg.type==='muebles'?`<div><div class="ck-lbl">Recaudado</div><div class="ck-val" style="color:var(--green)">${fmt(agg.recaudado||0)}</div></div>
-        <div><div class="ck-lbl">Saldo</div><div class="ck-val" style="color:var(--gold)">${fmt(agg.saldo||0)}</div></div>`:roasHtml}
+        <div><div class="ck-lbl">Saldo</div><div class="ck-val" style="color:var(--gold)">${fmt(agg.saldo||0)}</div></div>`:cfg.type==='stetic'?`<div><div class="ck-lbl">Conversaciones</div><div class="ck-val">${agg.totalChats||0}</div></div><div></div>`:roasHtml}
       </div>
       <div class="cfoot"><span>${hasErr?'⚠ Error sync':'● En vivo'}</span><span class="ccta">Ver detalle →</span></div>
     </div>`;
