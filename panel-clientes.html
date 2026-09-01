@@ -349,18 +349,26 @@ async function fetchLiliTracking(){
 
 async function fetchStetic(){
   const id=SHEETS.stetic;const t=Date.now();
-  // Try monthly tabs + default sheet; deduplicate
-  const tabs=[...MES_ES,''];
-  const jobs=tabs.map(m=>fetch(gvizURL(id,m,t)).then(r=>r.ok?r.text():'').catch(()=>''));
-  const texts=await Promise.all(jobs);
-  const seen={};let all=[];
-  texts.forEach(tx=>{
-    if(!tx||tx.trim().length<20)return;
-    if(seen[tx])return;seen[tx]=1;
-    const rows=parseCSV(tx);
-    for(let i=1;i<rows.length;i++){const p=parseSteticRow(rows[i]);if(p)all.push(p);}
-  });
-  return all;
+  const url=`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=1333988529&t=${t}`;
+  const tx=await fetch(url).then(r=>r.ok?r.text():'').catch(()=>'');
+  if(!tx)return[];
+  const rows=parseCSV(tx);const out=[];let lastDate=null;
+  for(let i=1;i<rows.length;i++){
+    const r=rows[i];
+    const iso=toISO((r[0]||'').trim());if(iso)lastDate=iso;
+    if(!lastDate)continue;
+    const chats=parseInt(r[1])||0;
+    const nAgendados=parseInt(r[2])||0;
+    const cliente=(r[3]||'').trim();
+    const servicio=(r[4]||'').trim();
+    const valorAgendado=pm(r[5]);
+    const asistio=(r[6]||'').trim();
+    const valorRecaudado=pm(r[7]);
+    const obs=(r[8]||'').trim();
+    if(!servicio&&!cliente&&!chats&&!nAgendados)continue;
+    out.push({fecha:lastDate,chats,nAgendados,cliente,servicio,valorAgendado,asistio,valorRecaudado,obs});
+  }
+  return out;
 }
 
 async function fetchEnsifera(){
@@ -480,18 +488,24 @@ function aggLili(rows,trackingRows,from,to){
 }
 
 function aggStetic(rows){
+  const agendadas=rows.filter(r=>r.servicio);
   const asistidas=rows.filter(r=>/sí/i.test(r.asistio)&&r.valorRecaudado>0);
+  const noShow=rows.filter(r=>/no/i.test(r.asistio)&&r.servicio).length;
   const total=asistidas.reduce((s,r)=>s+r.valorRecaudado,0);
   const n=asistidas.length;
-  const agendadas=rows.filter(r=>r.servicio);
-  const noShow=rows.filter(r=>/no/i.test(r.asistio)).length;
-  const fechas=[...new Set(rows.map(r=>r.fecha))];
-  const totalChats=fechas.reduce((s,f)=>{const rw=rows.find(r=>r.fecha===f&&r.chats>0);return s+(rw?rw.chats:0);},0);
+  const posiblesGanancias=agendadas.reduce((s,r)=>s+r.valorAgendado,0);
+  const seenC=new Set();let totalChats=0;
+  rows.forEach(r=>{if(r.chats>0&&!seenC.has(r.fecha)){totalChats+=r.chats;seenC.add(r.fecha);}});
+  const convAgenda=agendadas.length>0?n/agendadas.length:null;
+  const convContacto=totalChats>0?agendadas.length/totalChats:null;
   return{
-    total,n,ticket:n?total/n:0,nAgendadas:agendadas.length,noShow,totalChats,
-    byServicio:groupBy(asistidas,r=>r.servicio,r=>r.valorRecaudado),
+    total,n,ticket:n?total/n:0,
+    nAgendadas:agendadas.length,noShow,totalChats,
+    posiblesGanancias,convAgenda,convContacto,
+    byServicio:groupBy(agendadas,r=>r.servicio,r=>r.valorAgendado),
+    byServicioReal:groupBy(asistidas,r=>r.servicio,r=>r.valorRecaudado),
     byDay:groupBy(asistidas,r=>r.fecha,r=>r.valorRecaudado),
-    rows:asistidas,allRows:rows,
+    rows:agendadas,allRows:rows,
   };
 }
 
@@ -702,15 +716,21 @@ function renderDetail(cid){
       <div class="sec"><div class="sec-ttl">Tipo de producto</div>${bars(agg.byTipo,cfg.cc,8)}</div>
     </div>`;
   } else if(cfg.type==='stetic'){
+    const sCA=agg.convAgenda!=null?(agg.convAgenda*100).toFixed(0)+'%':'—';
+    const sCC=agg.convContacto!=null?(agg.convContacto*100).toFixed(0)+'%':'—';
     specific=`<div class="dgrid">
-      <div class="sec"><div class="sec-ttl">Servicios top <span>por ingreso recaudado</span></div>${bars(agg.byServicio,cfg.cc,8)}</div>
-      <div class="sec"><div class="sec-ttl">Atención</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-          <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Asistidas</div><div style="font-size:22px;font-weight:800;color:var(--green)">${agg.n||0}</div><div style="font-size:11px;color:var(--ink2)">de ${agg.nAgendadas||0}</div></div>
-          <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">No shows</div><div style="font-size:22px;font-weight:800;color:var(--red)">${agg.noShow||0}</div></div>
-          <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Chats</div><div style="font-size:22px;font-weight:800">${agg.totalChats||0}</div></div>
+      <div class="sec"><div class="sec-ttl">Embudode conversión</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+          <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Conversaciones</div><div style="font-size:22px;font-weight:800">${agg.totalChats||0}</div></div>
+          <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Agendamientos</div><div style="font-size:22px;font-weight:800;color:var(--gold)">${agg.nAgendadas||0}</div><div style="font-size:11px;color:var(--ink2)">${sCC} conv. chat</div></div>
+          <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Asistencias</div><div style="font-size:22px;font-weight:800;color:var(--green)">${agg.n||0}</div><div style="font-size:11px;color:var(--ink2)">${sCA} asistencia</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Ganancias posibles</div><div style="font-size:18px;font-weight:800;color:var(--gold)">${fmtF(agg.posiblesGanancias||0)}</div><div style="font-size:11px;color:var(--ink2)">Si todos asistieran</div></div>
+          <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Ganancia real</div><div style="font-size:18px;font-weight:800;color:var(--green)">${fmtF(agg.total||0)}</div><div style="font-size:11px;color:var(--ink2)">No shows: ${agg.noShow||0}</div></div>
         </div>
       </div>
+      <div class="sec"><div class="sec-ttl">Servicios <span>por valor agendado</span></div>${bars(agg.byServicio,cfg.cc,8,true)}</div>
     </div>`;
   } else if(cfg.type==='ensifera'){
     const camps=agg.campaigns||[];
@@ -756,10 +776,10 @@ function renderDetail(cid){
       </table></div>`;
     } else if(cfg.type==='stetic'){
       tbl=`<div class="twrap"><table>
-        <thead><tr><th>Fecha</th><th>Cliente</th><th>Servicio</th><th>Asistió</th><th>Agendado</th><th>Recaudado</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Cliente</th><th>Servicio</th><th>Asistió</th><th>V. Agendado</th><th>V. Recaudado</th></tr></thead>
         <tbody>${rr.map(r=>`<tr><td>${r.fecha.slice(5).replace('-','/')}</td><td>${r.cliente||'—'}</td><td>${r.servicio||'—'}</td>
           <td><span class="chip" style="background:${/sí/i.test(r.asistio)?'#3ecf8e22':/no/i.test(r.asistio)?'#f5656522':'var(--card2)'};">${r.asistio||'—'}</span></td>
-          <td>${fmtF(r.valorAgendado)}</td><td style="color:var(--green)">${fmtF(r.valorRecaudado)}</td></tr>`).join('')}</tbody>
+          <td>${fmtF(r.valorAgendado)}</td><td style="color:${/sí/i.test(r.asistio)?'var(--green)':'var(--ink3)'}">${r.valorRecaudado?fmtF(r.valorRecaudado):'—'}</td></tr>`).join('')}</tbody>
       </table></div>`;
     }
   }
