@@ -719,7 +719,7 @@ function renderDetail(cid){
     const sCA=agg.convAgenda!=null?(agg.convAgenda*100).toFixed(0)+'%':'—';
     const sCC=agg.convContacto!=null?(agg.convContacto*100).toFixed(0)+'%':'—';
     specific=`<div class="dgrid">
-      <div class="sec"><div class="sec-ttl">Embudode conversión</div>
+      <div class="sec"><div class="sec-ttl">Embudo de conversión</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
           <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Conversaciones</div><div style="font-size:22px;font-weight:800">${agg.totalChats||0}</div></div>
           <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Agendamientos</div><div style="font-size:22px;font-weight:800;color:var(--gold)">${agg.nAgendadas||0}</div><div style="font-size:11px;color:var(--ink2)">${sCC} conv. chat</div></div>
