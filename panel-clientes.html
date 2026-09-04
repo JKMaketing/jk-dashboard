@@ -333,30 +333,33 @@ async function fetchMonthlySh(sheetKey,parserFn){
   return all;
 }
 
-// Reads El Rey data from the ronal dashboard (same GitHub Pages origin → shared localStorage).
-// Falls back to a live gviz fetch (full-text dedup, same logic as dashboard-de-ventas-ronal).
+// Fetches El Rey (Cerritos) data directly from the muebles Google Sheet.
+// Uses &range=A1:P2000 on each monthly tab to bypass gviz's blank-row cut
+// (the sheet has Jamundí block / blank row / Cerritos block within each tab;
+// without an explicit range gviz stops at the first blank row and misses El Rey).
 async function fetchRonal(){
-  try{
-    const cached=JSON.parse(localStorage.getItem('noct_ventas_data')||'null');
-    if(cached&&cached.length>0)return cached;
-  }catch(e){}
   const id=SHEETS.muebles;const t=Date.now();
-  const jobs=MES_ES.map(m=>fetch(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(m)}&t=${t}`).then(r=>r.ok?r.text():'').catch(()=>''));
+  // Explicit range forces gviz to read the full column range, past blank rows
+  const rangeParam='&range=A1:P2000';
+  const jobs=MES_ES.map(m=>
+    fetch(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(m)}${rangeParam}&t=${t}`)
+      .then(r=>r.ok?r.text():'').catch(()=>'')
+  );
   const texts=await Promise.all(jobs);
   const seen={};let all=[];
   texts.forEach(tx=>{
-    if(!tx||!seen[tx]){
-      if(tx)seen[tx]=1;
-      if(!tx)return;
-      const rows=parseCSV(tx);
-      for(let i=1;i<rows.length;i++){
-        const c=rows[i];const iso=toISO(c[0]);if(!iso)continue;
-        all.push([iso,(c[1]||'').trim().toUpperCase(),normSede(c[2]),(c[3]||'').trim().toUpperCase(),
-          /^\s*si\s*$/i.test(c[4]||'')?1:0,(c[6]||'').trim().toUpperCase(),pm(c[13]),pm(c[14])]);
-      }
+    if(!tx||seen[tx])return;
+    seen[tx]=1;
+    const rows=parseCSV(tx);
+    for(let i=1;i<rows.length;i++){
+      const c=rows[i];const iso=toISO(c[0]);if(!iso)continue;
+      all.push([iso,(c[1]||'').trim().toUpperCase(),normSede(c[2]),(c[3]||'').trim().toUpperCase(),
+        /^\s*s/i.test(c[4]||'')||c[4]==='1'?1:0,(c[6]||'').trim().toUpperCase(),pm(c[13]),pm(c[14])]);
     }
   });
-  if(all.length){try{localStorage.setItem('noct_ventas_data',JSON.stringify(all));}catch(e){}}
+  // If range trick yields data, great; otherwise fall back to localStorage (from ronal dashboard)
+  if(all.length)return all;
+  try{const cached=JSON.parse(localStorage.getItem('noct_ventas_data')||'null');if(cached&&cached.length)return cached;}catch(e){}
   return all;
 }
 function getRonalRows(data){
