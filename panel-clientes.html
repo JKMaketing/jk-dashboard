@@ -204,7 +204,7 @@ const CLIENTS=[
 // STATE
 // ============================================================
 const ST={
-  raw:{muebles:null,colchones:null,lili:null,liliTracking:null,stetic:null,ensifera:null},
+  raw:{muebles:null,colchones:null,lili:null,liliTracking:null,stetic:null,ensifera:null,ronal:null},
   loading:{muebles:true,colchones:true,lili:true,stetic:true,ensifera:true},
   errors:{},
   view:'home',
@@ -333,6 +333,36 @@ async function fetchMonthlySh(sheetKey,parserFn){
   return all;
 }
 
+// Reads El Rey data from the ronal dashboard (same GitHub Pages origin → shared localStorage).
+// Falls back to a live gviz fetch (full-text dedup, same logic as dashboard-de-ventas-ronal).
+async function fetchRonal(){
+  try{
+    const cached=JSON.parse(localStorage.getItem('noct_ventas_data')||'null');
+    if(cached&&cached.length>0)return cached;
+  }catch(e){}
+  const id=SHEETS.muebles;const t=Date.now();
+  const jobs=MES_ES.map(m=>fetch(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(m)}&t=${t}`).then(r=>r.ok?r.text():'').catch(()=>''));
+  const texts=await Promise.all(jobs);
+  const seen={};let all=[];
+  texts.forEach(tx=>{
+    if(!tx||!seen[tx]){
+      if(tx)seen[tx]=1;
+      if(!tx)return;
+      const rows=parseCSV(tx);
+      for(let i=1;i<rows.length;i++){
+        const c=rows[i];const iso=toISO(c[0]);if(!iso)continue;
+        all.push([iso,(c[1]||'').trim().toUpperCase(),normSede(c[2]),(c[3]||'').trim().toUpperCase(),
+          /^\s*si\s*$/i.test(c[4]||'')?1:0,(c[6]||'').trim().toUpperCase(),pm(c[13]),pm(c[14])]);
+      }
+    }
+  });
+  if(all.length){try{localStorage.setItem('noct_ventas_data',JSON.stringify(all));}catch(e){}}
+  return all;
+}
+function getRonalRows(data){
+  return(data||[]).map(r=>({fecha:r[0],vendedor:r[1],sede:r[2],origen:r[3],isVenta:r[4]===1,producto:r[5],total:r[6],recaudado:r[7]}));
+}
+
 async function fetchLili(){
   const id=SHEETS.lili;const t=Date.now();
   const tx=await fetch(gvizURL(id,'BASE_VENTAS',t)).then(r=>r.ok?r.text():'').catch(()=>'');
@@ -389,7 +419,7 @@ async function syncAll(){
   renderCurrent();
 
   await Promise.all([
-    fetchMonthlySh('muebles',parseMueRow).then(d=>{ST.raw.muebles=d;ST.loading.muebles=false;}).catch(e=>{ST.errors.muebles=e;ST.loading.muebles=false;}),
+    Promise.all([fetchMonthlySh('muebles',parseMueRow),fetchRonal()]).then(([d,r])=>{ST.raw.muebles=d;ST.raw.ronal=r;ST.loading.muebles=false;}).catch(e=>{ST.errors.muebles=e;ST.loading.muebles=false;}),
     fetchMonthlySh('colchones',parseMueRow).then(d=>{ST.raw.colchones=d;ST.loading.colchones=false;}).catch(e=>{ST.errors.colchones=e;ST.loading.colchones=false;}),
     Promise.all([
       fetchLili().then(d=>{ST.raw.lili=d;}).catch(()=>{}),
@@ -526,6 +556,10 @@ function aggEnsifera(data,from,to){
 
 function clientAgg(cfg,from,to){
   if(cfg.type==='ensifera')return aggEnsifera(ST.raw.ensifera,from,to);
+  // El Rey: prefer data from ronal dashboard (same-origin localStorage + live fetch)
+  if(cfg.id==='elrey'&&ST.raw.ronal&&ST.raw.ronal.length){
+    return aggMuebles(filterRows(getRonalRows(ST.raw.ronal),from,to),'CERRITOS');
+  }
   const rows=filterRows(ST.raw[cfg.sheet],from,to);
   if(cfg.type==='muebles')return aggMuebles(rows,cfg.sede);
   if(cfg.type==='lili')return aggLili(rows,ST.raw.liliTracking,from,to);
