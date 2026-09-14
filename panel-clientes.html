@@ -523,7 +523,7 @@ function aggLili(rows,trackingRows,from,to){
 
 function aggStetic(rows){
   const agendadas=rows.filter(r=>r.servicio);
-  const asistidas=rows.filter(r=>/sí/i.test(r.asistio)&&r.valorRecaudado>0);
+  const asistidas=rows.filter(r=>/sí/i.test(r.asistio));
   const noShow=rows.filter(r=>/no/i.test(r.asistio)&&r.servicio).length;
   const total=asistidas.reduce((s,r)=>s+r.valorRecaudado,0);
   const n=asistidas.length;
