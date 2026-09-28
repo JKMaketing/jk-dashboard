@@ -238,9 +238,12 @@ function pm(s){if(!s)return 0;const c=String(s).replace(/[^0-9]/g,'');return c?p
 function toISO(s){
   s=(s||'').trim();
   if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
-  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-  return null;
+  // Tolera errores de digitación: "23//9/26", "27/8/26", "23/08/0202"
+  const m=s.match(/^(\d{1,2})\/+(\d{1,2})\/+(\d{2,4})$/);
+  if(!m)return null;
+  let y=m[3].length===2?'20'+m[3]:m[3];
+  if(Number(y)<2000)y=String(new Date().getFullYear());
+  return`${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
 }
 function today(){return new Date().toISOString().slice(0,10);}
 function addDays(iso,n){const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
@@ -334,34 +337,42 @@ async function fetchMonthlySh(sheetKey,parserFn){
   return all;
 }
 
-// Fetches El Rey (Cerritos) data directly from the muebles Google Sheet.
-// Uses &range=A1:P2000 on each monthly tab to bypass gviz's blank-row cut
-// (the sheet has Jamundí block / blank row / Cerritos block within each tab;
-// without an explicit range gviz stops at the first blank row and misses El Rey).
-async function fetchRonal(){
+// Sheet de muebles (Jamundí + Cerritos): se lee igual que el dashboard de Ronal para que
+// ambos sincronicen idéntico. export?format=csv por gid conserva celdas mal digitadas
+// (p. ej. fecha "23//9/26") que gviz deja vacías. Los gids los publica el dashboard de Ronal
+// (const GIDS, actualizado a diario por su update_data.py). Meses sin gid: gviz por nombre,
+// aceptando solo filas cuyo mes coincide con la pestaña (un nombre inexistente devuelve otra).
+async function fetchRonalGids(){
+  try{
+    const tx=await fetch('https://jkmaketing.github.io/dashboard-de-ventas-ronal/?t='+Date.now()).then(r=>r.ok?r.text():'');
+    const m=tx.match(/const GIDS=(\{.*?\});/);
+    return m?JSON.parse(m[1].replace(/\\"/g,'"')):{};
+  }catch(e){return {};}
+}
+async function fetchMueblesRows(){
   const id=SHEETS.muebles;const t=Date.now();
-  // Explicit range forces gviz to read the full column range, past blank rows
-  const rangeParam='&range=A1:P2000';
-  const jobs=MES_ES.map(m=>
-    fetch(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(m)}${rangeParam}&t=${t}`)
-      .then(r=>r.ok?r.text():'').catch(()=>'')
-  );
-  const texts=await Promise.all(jobs);
-  const seen={};let all=[];
-  texts.forEach(tx=>{
-    if(!tx||seen[tx])return;
-    seen[tx]=1;
+  const gids=await fetchRonalGids();
+  const jobs=MES_ES.map((m,mi)=>{
+    const url=gids[m]?`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gids[m]}`:gvizURL(id,m,t);
+    return fetch(url+(gids[m]?`&t=${t}`:'')).then(r=>r.ok?r.text():'').catch(()=>'')
+      .then(tx=>({tx,gid:!!gids[m],mm:String(mi+1).padStart(2,'0')}));
+  });
+  const res=await Promise.all(jobs);
+  const all=[];
+  res.forEach(({tx,gid,mm})=>{
+    if(!tx)return;
     const rows=parseCSV(tx);
     for(let i=1;i<rows.length;i++){
-      const c=rows[i];const iso=toISO(c[0]);if(!iso)continue;
-      all.push([iso,(c[1]||'').trim().toUpperCase(),normSede(c[2]),(c[3]||'').trim().toUpperCase(),
-        /^\s*s/i.test(c[4]||'')||c[4]==='1'?1:0,(c[6]||'').trim().toUpperCase(),pm(c[13]),pm(c[14])]);
+      const iso=toISO(rows[i][0]);if(!iso)continue;
+      if(!gid&&iso.slice(5,7)!==mm)continue;
+      all.push(rows[i]);
     }
   });
-  // If range trick yields data, great; otherwise fall back to localStorage (from ronal dashboard)
-  if(all.length)return all;
-  try{const cached=JSON.parse(localStorage.getItem('noct_ventas_data')||'null');if(cached&&cached.length)return cached;}catch(e){}
   return all;
+}
+function toRonalRow(c){
+  return[toISO(c[0]),(c[1]||'').trim().toUpperCase(),normSede(c[2]),(c[3]||'').trim().toUpperCase(),
+    /^\s*s/i.test(c[4]||'')||c[4]==='1'?1:0,(c[6]||'').trim().toUpperCase(),pm(c[13]),pm(c[14])];
 }
 function getRonalRows(data){
   return(data||[]).map(r=>({fecha:r[0],vendedor:r[1],sede:r[2],origen:r[3],isVenta:r[4]===1,producto:r[5],total:r[6],recaudado:r[7]}));
@@ -423,7 +434,7 @@ async function syncAll(){
   renderCurrent();
 
   await Promise.all([
-    Promise.all([fetchMonthlySh('muebles',parseMueRow),fetchRonal()]).then(([d,r])=>{ST.raw.muebles=d;ST.raw.ronal=r;ST.loading.muebles=false;}).catch(e=>{ST.errors.muebles=e;ST.loading.muebles=false;}),
+    fetchMueblesRows().then(rows=>{ST.raw.muebles=rows.map(parseMueRow).filter(Boolean);ST.raw.ronal=rows.map(toRonalRow);ST.loading.muebles=false;}).catch(e=>{ST.errors.muebles=e;ST.loading.muebles=false;}),
     fetchMonthlySh('colchones',parseMueRow).then(d=>{ST.raw.colchones=d;ST.loading.colchones=false;}).catch(e=>{ST.errors.colchones=e;ST.loading.colchones=false;}),
     Promise.all([
       fetchLili().then(d=>{ST.raw.lili=d;}).catch(()=>{}),
