@@ -416,13 +416,13 @@ async function fetchStetic(){
   return out;
 }
 
+// Ensífera: datos del dashboard en Cloudflare (ensifera-dashboard.contacto-0e4.workers.dev).
+// El Worker no envía CORS, así que GitHub Actions lo copia cada hora a ensifera.json
+// (scripts/fetch_ensifera.py) con la misma lógica del Worker.
 async function fetchEnsifera(){
   try{
-    const tx=await fetch('https://jkmaketing.github.io/ensifera-dashboard/?t='+Date.now())
-      .then(r=>r.ok?r.text():'').catch(()=>'');
-    if(!tx)return null;
-    const m=tx.match(/const DATA\s*=\s*(\{[\s\S]*?\});\s*\n/);
-    return m?JSON.parse(m[1]):null;
+    const r=await fetch('ensifera.json?t='+Date.now());
+    return r.ok?await r.json():null;
   }catch(e){return null;}
 }
 
@@ -559,14 +559,17 @@ function aggEnsifera(data,from,to){
   const days=data.days.filter(d=>d.date>=from&&d.date<=to);
   const total=days.reduce((s,d)=>s+(d.salesCOP||0),0);
   const inversion=days.reduce((s,d)=>s+(d.spendCOP||0),0);
-  const n=days.reduce((s,d)=>s+(d.resultsAds||d.conversations||0),0);
+  // Igual que el Worker: conversiones atribuidas por Meta; si no hay, las totales del registro
+  const nMeta=days.reduce((s,d)=>s+(d.resultsAds||0),0);
+  const n=nMeta>0?nMeta:days.reduce((s,d)=>s+(d.conversations||0),0);
+  const ventas=days.reduce((s,d)=>s+(d.ventas||0),0);
   const roas=inversion>0?total/inversion:null;
   const byDay=days.map(d=>({name:d.date,val:d.salesCOP||0}));
   // aggregate campaigns across days
   const campMap={};
   days.forEach(d=>(d.campaigns||[]).forEach(c=>{if(!campMap[c.name])campMap[c.name]={name:c.name,val:0,spend:0};campMap[c.name].val+=c.results||0;campMap[c.name].spend+=c.spendCOP||0;}));
   const campaigns=Object.values(campMap).sort((a,b)=>b.spend-a.spend);
-  return{total,inversion,n,ticket:n>0?total/n:0,roas,byDay,campaigns,rows:[]};
+  return{total,inversion,n,ventas,ticket:ventas>0?total/ventas:0,roas,byDay,campaigns,rows:[],updatedAt:data.generatedAt||null};
 }
 
 function clientAgg(cfg,from,to){
@@ -875,7 +878,7 @@ function renderDetail(cid){
 
   <div class="sec" style="margin-bottom:12px">
     ${isEnsifera?`
-    <div class="sec-ttl">Inversión en Ads · ROAS <span>datos en vivo desde Ensífera Dashboard</span></div>
+    <div class="sec-ttl">Inversión en Ads · ROAS <span>desde <a href="https://ensifera-dashboard.contacto-0e4.workers.dev/" target="_blank" rel="noopener" style="color:inherit">ensifera-dashboard (Cloudflare)</a>${agg.updatedAt?` · actualizado ${new Date(agg.updatedAt).toLocaleString('es-CO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}`:''}</span></div>
     <div class="roas-grid">
       <div class="rrow">
         <div class="r-lbl">Inversión real (Meta Ads)</div>
