@@ -158,6 +158,10 @@ tr:hover td{background:var(--card2);}
 .rec-fill{height:100%;border-radius:4px;background:var(--green);transition:width .5s;}
 
 /* ── Cartera ── */
+.eye{font-size:12px;line-height:1;padding:2px 4px;border-radius:4px;opacity:.75;}
+.eye:hover{background:var(--card2);opacity:1;}
+.eye.off{opacity:1;}
+.th-eye{margin-left:4px;vertical-align:middle;}
 .cart-ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
 .seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;}
 .seg button{padding:4px 10px;font-size:11px;font-weight:600;color:var(--ink2);}
@@ -244,41 +248,31 @@ try{const th=localStorage.getItem('jkm_theme');if(th)ST.theme=th;}catch(e){}
 // custom: clientes manuales {id,name,venta,inv} (mensuales) · base: 'total' | 'pauta'
 ST.cart={inv:{},incl:{},custom:[],base:'pauta'};
 try{const c=JSON.parse(localStorage.getItem('jkm_cartera')||'null');if(c)ST.cart=Object.assign(ST.cart,c);}catch(e){}
-// ── Ojitos de privacidad (solo Home): ocultar nombres (***) y datos (****) ──
-ST.hide={n:false,d:false};
-try{const h=JSON.parse(localStorage.getItem('jkm_hide')||'null');if(h)ST.hide=Object.assign(ST.hide,h);}catch(e){}
-function toggleHide(k){ST.hide[k]=!ST.hide[k];try{localStorage.setItem('jkm_hide',JSON.stringify(ST.hide));}catch(e){}updateEyes();renderCurrent();}
+// ── Ojitos de privacidad (solo Home) ──
+// n[id]: oculta el nombre del cliente (***) · d[id]: oculta sus cifras (****) · c[col]: oculta una columna de la tabla
+ST.hide={n:{},d:{},c:{}};
+try{const h=JSON.parse(localStorage.getItem('jkm_hide2')||'null');if(h)ST.hide=Object.assign(ST.hide,h);}catch(e){}
+function saveHide(){try{localStorage.setItem('jkm_hide2',JSON.stringify(ST.hide));}catch(e){}}
+function hn(id){return !!ST.hide.n[id];}
+function hd(id,col){return !!ST.hide.d[id]||(col?!!ST.hide.c[col]:false);}
+function allIds(){return CLIENTS.map(c=>c.id).concat(ST.cart.custom.map(c=>c.id));}
+function eyeBtn(on,fn,title){return`<button class="eye ${on?'off':''}" title="${title}" onclick="event.stopPropagation();${fn}">${on?'🙈':'👁'}</button>`;}
+function toggleName(id){ST.hide.n[id]=!ST.hide.n[id];saveHide();renderCurrent();}
+function toggleData(id){ST.hide.d[id]=!ST.hide.d[id];saveHide();renderCurrent();}
+function toggleCol(k){ST.hide.c[k]=!ST.hide.c[k];saveHide();renderCurrent();}
+// Botones generales del encabezado: ocultan / muestran todo de una vez
+function toggleAll(kind){
+  const ids=allIds();
+  if(kind==='n'){const v=!ids.every(id=>ST.hide.n[id]);ids.forEach(id=>ST.hide.n[id]=v);}
+  else{const v=!ids.every(id=>ST.hide.d[id]);ids.forEach(id=>ST.hide.d[id]=v);if(!v)ST.hide.c={};}
+  saveHide();renderCurrent();
+}
 function updateEyes(){
   const bn=$('eyeN'),bd=$('eyeD');if(!bn)return;
-  bn.textContent=(ST.hide.n?'🙈':'👁')+' Nombres';bn.classList.toggle('active',ST.hide.n);
-  bd.textContent=(ST.hide.d?'🙈':'👁')+' Datos';bd.classList.toggle('active',ST.hide.d);
-}
-function applyMask(){
-  const root=$('app');if(!root||ST.view!=='home')return;
-  const names=new Set();
-  CLIENTS.forEach(c=>{names.add(c.name);if(c.sub)names.add(c.sub);});
-  ST.cart.custom.forEach(c=>{if(c.name)names.add(c.name);});
-  const nameRe=[...names].filter(Boolean).sort((a,b)=>b.length-a.length).map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
-  const re=nameRe.length?new RegExp(nameRe.join('|'),'g'):null;
-  const numRe=/\$?\d[\d.,]*\s?[KMB]?[×%]?/g;
-  if(ST.hide.n){
-    root.querySelectorAll('input.txt').forEach(i=>{i.value='***';i.readOnly=true;});
-    root.querySelectorAll('[title]').forEach(e=>e.removeAttribute('title'));
-  }
-  if(ST.hide.d){
-    root.querySelectorAll('input.cinput:not(.txt)').forEach(i=>{i.value='****';i.placeholder='****';i.readOnly=true;});
-    root.querySelectorAll('svg').forEach(e=>{e.style.filter='blur(7px)';});
-    root.querySelectorAll('.mini i,.bfill').forEach(e=>{e.style.width='100%';e.style.opacity='.25';});
-  }
-  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes=[];
-  while(w.nextNode())nodes.push(w.currentNode);
-  nodes.forEach(t=>{
-    let v=t.nodeValue;if(!v.trim())return;
-    const inTtlSpan=t.parentElement&&t.parentElement.closest('.sec-ttl span');
-    if(ST.hide.n&&re)v=v.replace(re,'***');
-    if(ST.hide.d&&!inTtlSpan)v=v.replace(numRe,'****');
-    if(v!==t.nodeValue)t.nodeValue=v;
-  });
+  const ids=allIds();
+  const an=ids.every(id=>ST.hide.n[id]),ad=ids.every(id=>ST.hide.d[id]);
+  bn.textContent=(an?'🙈':'👁')+' Nombres';bn.classList.toggle('active',an);
+  bd.textContent=(ad?'🙈':'👁')+' Datos';bd.classList.toggle('active',ad);
 }
 function saveCart(){try{localStorage.setItem('jkm_cartera',JSON.stringify(ST.cart));}catch(e){}}
 function invMes(id){const v=ST.cart.inv[id];return v!=null&&v!==''?Number(v):(INVERSION_FIJA[id]||0);}
@@ -752,12 +746,12 @@ function renderHome(){
     const hasErr=cfg.type==='ensifera'?ST.errors.ensifera:ST.errors[cfg.sheet];
     return`<div class="ccard" style="--cc:${cfg.cc}" onclick="drillDown('${cfg.id}')">
       <div class="ccard-head">
-        <div><div class="cname">${cfg.name}</div><div class="csub">${cfg.sub}</div></div>
-        <span class="cicon">${cfg.icon}</span>
+        <div><div class="cname">${hn(cfg.id)?'***':cfg.name}</div><div class="csub">${hn(cfg.id)?'***':cfg.sub}</div></div>
+        <span class="cicon">${hn(cfg.id)?'':cfg.icon}</span><span style="margin-left:auto;white-space:nowrap">${eyeBtn(hn(cfg.id),`toggleName('${cfg.id}')`,'Ocultar / mostrar el nombre')}${eyeBtn(!!ST.hide.d[cfg.id],`toggleData('${cfg.id}')`,'Ocultar / mostrar las cifras')}</span>
       </div>
-      <div class="ctotal">${fmt(agg.total||0)}</div>
-      <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--ink2)">${dl}</span>${pb}</div>
-      <div class="ckpis">
+      <div class="ctotal">${ST.hide.d[cfg.id]?'****':fmt(agg.total||0)}</div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--ink2)">${dl}</span>${ST.hide.d[cfg.id]?'':pb}</div>
+      <div class="ckpis" ${ST.hide.d[cfg.id]?'style="visibility:hidden"':''}>
         <div><div class="ck-lbl">${cfg.type==='lili'?'Ventas':'Conversiones'}</div><div class="ck-val">${agg.n||0}</div></div>
         <div><div class="ck-lbl">Ticket</div><div class="ck-val">${fmt(agg.ticket||0)}</div></div>
         ${cfg.type==='muebles'?`<div><div class="ck-lbl">Recaudado</div><div class="ck-val" style="color:var(--green)">${fmt(agg.recaudado||0)}</div></div>
@@ -816,31 +810,37 @@ function renderCartera(from,to,dl){
   const byDay=Object.entries(dayMap).map(([name,val])=>({name,val}));
   const shareItems=[...on].sort((a,b)=>b.venta-a.venta).map(r=>({name:r.cfg.name+(r.cfg.sub?' · '+r.cfg.sub:''),val:r.venta}));
 
+  const MASK='<span style="color:var(--ink3)">****</span>';
   const body=rows.map(r=>{
     const share=venta>0&&r.incl&&!r.loading?r.venta/venta*100:0;
     const cc=r.cfg.cc;
-    const nameCell=r.custom
+    const hname=hn(r.id);
+    const nameCell=hname?'<span class="cdot" style="background:var(--ink3)"></span>***'
+      :r.custom
       ?`<input class="cinput txt" value="${(r.name||'').replace(/"/g,'&quot;')}" placeholder="Nombre" onchange="updCustom('${r.id}','name',this.value)">`
       :`<span class="cdot" style="background:${cc}"></span>${r.cfg.name} <span style="color:var(--ink3)">· ${r.cfg.sub}</span>`;
-    const ventaCell=r.custom
+    const ventaCell=hd(r.id,'venta')?MASK:r.custom
       ?`<input class="cinput" inputmode="numeric" title="Venta mensual generada" value="${r.vm?new Intl.NumberFormat('es-CO').format(r.vm):''}" placeholder="venta/mes" onchange="updCustom('${r.id}','venta',this.value)">`
       :(r.loading?'<span style="color:var(--ink3)">…</span>':fmtF(r.venta));
-    const invCell=r.custom
+    const invCell=hd(r.id,'invmes')?MASK:r.custom
       ?`<input class="cinput" inputmode="numeric" value="${r.mes?new Intl.NumberFormat('es-CO').format(r.mes):''}" placeholder="inversión/mes" onchange="updCustom('${r.id}','inv',this.value)">`
       :`<input class="cinput" inputmode="numeric" value="${r.auto?'':new Intl.NumberFormat('es-CO').format(r.mes)}" placeholder="${r.auto?'Real Meta Ads':'0'}" onchange="setInv('${r.id}',this.value)">`;
     const del=r.custom?`<button class="cbtn" title="Quitar" onclick="delCustom('${r.id}')">✕</button>`:'';
     return`<tr class="${r.incl?'':'off'}">
       <td><input type="checkbox" ${r.incl?'checked':''} onchange="toggleIncl('${r.id}',this.checked)" title="Incluir en los totales"></td>
+      <td style="white-space:nowrap">${eyeBtn(hname,`toggleName('${r.id}')`,'Ocultar / mostrar el nombre')}${eyeBtn(!!ST.hide.d[r.id],`toggleData('${r.id}')`,'Ocultar / mostrar las cifras de este cliente')}</td>
       <td>${nameCell}</td>
       <td style="text-align:right">${ventaCell}</td>
       <td style="text-align:right">${invCell}</td>
-      <td style="text-align:right">${r.loading?'…':fmtF(r.inv)}</td>
-      <td style="text-align:right;font-weight:800;color:${roasCol(r.roas)}">${r.roas!=null?r.roas.toFixed(2)+'×':'—'}</td>
-      <td style="text-align:right">${r.n>0&&r.inv>0?fmtF(r.inv/r.n):'—'}</td>
-      <td style="min-width:110px"><div style="display:flex;align-items:center;gap:6px"><div class="mini" style="flex:1"><i style="width:${share.toFixed(1)}%;background:${cc}"></i></div><span style="font-size:11px;color:var(--ink2);width:34px;text-align:right">${share.toFixed(0)}%</span></div></td>
+      <td style="text-align:right">${hd(r.id,'inv')?MASK:(r.loading?'…':fmtF(r.inv))}</td>
+      <td style="text-align:right;font-weight:800;color:${roasCol(r.roas)}">${hd(r.id,'roas')?MASK:(r.roas!=null?r.roas.toFixed(2)+'×':'—')}</td>
+      <td style="text-align:right">${hd(r.id,'cpv')?MASK:(r.n>0&&r.inv>0?fmtF(r.inv/r.n):'—')}</td>
+      <td style="min-width:110px">${hd(r.id,'share')?MASK:`<div style="display:flex;align-items:center;gap:6px"><div class="mini" style="flex:1"><i style="width:${share.toFixed(1)}%;background:${cc}"></i></div><span style="font-size:11px;color:var(--ink2);width:34px;text-align:right">${share.toFixed(0)}%</span></div>`}</td>
       <td>${del}</td>
     </tr>`;
   }).join('');
+  const th=(k,label)=>`<th style="text-align:right">${label}${eyeBtn(!!ST.hide.c[k],`toggleCol('${k}')`,'Ocultar / mostrar esta columna').replace('class="eye','class="eye th-eye')}</th>`;
+  const tf=(k,html)=>ST.hide.c[k]?MASK:html;
 
   const baseLbl=ST.cart.base==='pauta'?'venta atribuida a pauta (muebles: origen PAUTA)':'venta total de cada cliente';
   return`<div class="sec" style="margin-bottom:14px">
@@ -863,9 +863,9 @@ function renderCartera(from,to,dl){
     </div>
 
     <div class="twrap"><table class="cart-tbl">
-      <thead><tr><th></th><th>Cliente</th><th style="text-align:right">Venta (periodo)</th><th style="text-align:right">Inversión / mes</th><th style="text-align:right">Inversión (periodo)</th><th style="text-align:right">ROAS</th><th style="text-align:right">Costo × venta</th><th>% de la cartera</th><th></th></tr></thead>
+      <thead><tr><th></th><th>Ocultar</th><th>Cliente</th>${th('venta','Venta (periodo)')}${th('invmes','Inversión / mes')}${th('inv','Inversión (periodo)')}${th('roas','ROAS')}${th('cpv','Costo × venta')}<th>% de la cartera<button class="eye th-eye ${ST.hide.c.share?'off':''}" title="Ocultar / mostrar esta columna" onclick="toggleCol('share')">${ST.hide.c.share?'🙈':'👁'}</button></th><th></th></tr></thead>
       <tbody>${body}</tbody>
-      <tfoot><tr><td></td><td>Total cartera</td><td style="text-align:right">${fmtF(venta)}</td><td></td><td style="text-align:right">${fmtF(inv)}</td><td style="text-align:right;color:${roasCol(roas)}">${roas!=null?roas.toFixed(2)+'×':'—'}</td><td style="text-align:right">${cpv?fmtF(cpv):'—'}</td><td></td><td></td></tr></tfoot>
+      <tfoot><tr><td></td><td></td><td>Total cartera</td><td style="text-align:right">${tf('venta',fmtF(venta))}</td><td></td><td style="text-align:right">${tf('inv',fmtF(inv))}</td><td style="text-align:right;color:${roasCol(roas)}">${tf('roas',roas!=null?roas.toFixed(2)+'×':'—')}</td><td style="text-align:right">${tf('cpv',cpv?fmtF(cpv):'—')}</td><td></td><td></td></tr></tfoot>
     </table></div>
     <p class="cnote">ROAS = ${baseLbl} ÷ inversión. La inversión mensual se prorratea a los días del periodo elegido; Ensífera usa la inversión real de Meta Ads salvo que escribas un valor. Marca o desmarca clientes para recalcular los totales. Los cambios se guardan en este navegador.</p>
   </div>
@@ -1131,7 +1131,7 @@ function renderCurrent(){
   renderDateBar();
   const c=$('app');if(!c)return;
   c.innerHTML=ST.view==='home'?renderHome():renderDetail(ST.view);
-  applyMask();
+  updateEyes();
 }
 
 // ============================================================
@@ -1164,8 +1164,8 @@ window.addEventListener('DOMContentLoaded',()=>{
     <div class="dot loading" id="sdot"></div>
     <span class="sync-lbl" id="slbl">Conectando…</span>
   </div>
-  <button class="hdr-btn" id="eyeN" title="Ocultar nombres de clientes en el Home" onclick="toggleHide('n')">👁 Nombres</button>
-  <button class="hdr-btn" id="eyeD" title="Ocultar cifras en el Home" onclick="toggleHide('d')">👁 Datos</button>
+  <button class="hdr-btn" id="eyeN" title="Ocultar nombres de clientes en el Home" onclick="toggleAll('n')">👁 Nombres</button>
+  <button class="hdr-btn" id="eyeD" title="Ocultar cifras en el Home" onclick="toggleAll('d')">👁 Datos</button>
   <button class="hdr-btn" id="syncbtn">⟳ Sincronizar</button>
   <button class="hdr-btn" id="tbtn">☀</button>
 </div>
