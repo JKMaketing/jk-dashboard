@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JK Marketing · Panel de Clientes</title>
 <style>
 /* ── Tokens ── */
@@ -158,9 +160,11 @@ tr:hover td{background:var(--card2);}
 .rec-fill{height:100%;border-radius:4px;background:var(--green);transition:width .5s;}
 
 /* ── Cartera ── */
-.eye{font-size:12px;line-height:1;padding:2px 4px;border-radius:4px;opacity:.75;}
-.eye:hover{background:var(--card2);opacity:1;}
-.eye.off{opacity:1;}
+.eye{display:inline-flex;align-items:center;justify-content:center;line-height:0;padding:3px;border-radius:5px;color:var(--ink2);opacity:.65;transition:all var(--t);flex-shrink:0;}
+.eye:hover{background:var(--card2);color:var(--ink);opacity:1;}
+.eye.off{color:var(--ink3);opacity:1;}
+.hdr-btn svg{vertical-align:-3px;margin-right:3px;}
+.cw{display:inline-flex;align-items:center;gap:5px;justify-content:flex-end;}
 .th-eye{margin-left:4px;vertical-align:middle;}
 .cart-ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
 .seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;}
@@ -250,13 +254,17 @@ ST.cart={inv:{},incl:{},custom:[],base:'pauta'};
 try{const c=JSON.parse(localStorage.getItem('jkm_cartera')||'null');if(c)ST.cart=Object.assign(ST.cart,c);}catch(e){}
 // ── Ojitos de privacidad (solo Home) ──
 // n[id]: oculta el nombre del cliente (***) · d[id]: oculta sus cifras (****) · c[col]: oculta una columna de la tabla
-ST.hide={n:{},d:{},c:{}};
+ST.hide={n:{},d:{},c:{},cell:{}};
 try{const h=JSON.parse(localStorage.getItem('jkm_hide2')||'null');if(h)ST.hide=Object.assign(ST.hide,h);}catch(e){}
 function saveHide(){try{localStorage.setItem('jkm_hide2',JSON.stringify(ST.hide));}catch(e){}}
 function hn(id){return !!ST.hide.n[id];}
-function hd(id,col){return !!ST.hide.d[id]||(col?!!ST.hide.c[col]:false);}
+function hd(id,col){return !!ST.hide.d[id]||(col?(!!ST.hide.c[col]||!!ST.hide.cell[id+'|'+col]):false);}
+function cellEye(id,col){return eyeBtn(!!ST.hide.cell[id+'|'+col],`toggleCell('${id}','${col}')`,'Ocultar / mostrar este dato');}
+function toggleCell(id,col){const k=id+'|'+col;ST.hide.cell[k]=!ST.hide.cell[k];saveHide();renderCurrent();}
 function allIds(){return CLIENTS.map(c=>c.id).concat(ST.cart.custom.map(c=>c.id));}
-function eyeBtn(on,fn,title){return`<button class="eye ${on?'off':''}" title="${title}" onclick="event.stopPropagation();${fn}">${on?'🙈':'👁'}</button>`;}
+const EYE_ON='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="3"/><path d="M3.5 3.5l17 17"/></svg>';
+function eyeBtn(on,fn,title){return`<button class="eye ${on?'off':''}" title="${title}" aria-label="${title}" onclick="event.stopPropagation();${fn}">${on?EYE_OFF:EYE_ON}</button>`;}
 function toggleName(id){ST.hide.n[id]=!ST.hide.n[id];saveHide();renderCurrent();}
 function toggleData(id){ST.hide.d[id]=!ST.hide.d[id];saveHide();renderCurrent();}
 function toggleCol(k){ST.hide.c[k]=!ST.hide.c[k];saveHide();renderCurrent();}
@@ -264,15 +272,15 @@ function toggleCol(k){ST.hide.c[k]=!ST.hide.c[k];saveHide();renderCurrent();}
 function toggleAll(kind){
   const ids=allIds();
   if(kind==='n'){const v=!ids.every(id=>ST.hide.n[id]);ids.forEach(id=>ST.hide.n[id]=v);}
-  else{const v=!ids.every(id=>ST.hide.d[id]);ids.forEach(id=>ST.hide.d[id]=v);if(!v)ST.hide.c={};}
+  else{const v=!ids.every(id=>ST.hide.d[id]);ids.forEach(id=>ST.hide.d[id]=v);if(!v){ST.hide.c={};ST.hide.cell={};}}
   saveHide();renderCurrent();
 }
 function updateEyes(){
   const bn=$('eyeN'),bd=$('eyeD');if(!bn)return;
   const ids=allIds();
   const an=ids.every(id=>ST.hide.n[id]),ad=ids.every(id=>ST.hide.d[id]);
-  bn.textContent=(an?'🙈':'👁')+' Nombres';bn.classList.toggle('active',an);
-  bd.textContent=(ad?'🙈':'👁')+' Datos';bd.classList.toggle('active',ad);
+  bn.innerHTML=(an?EYE_OFF:EYE_ON)+' Nombres';bn.classList.toggle('active',an);
+  bd.innerHTML=(ad?EYE_OFF:EYE_ON)+' Datos';bd.classList.toggle('active',ad);
 }
 function saveCart(){try{localStorage.setItem('jkm_cartera',JSON.stringify(ST.cart));}catch(e){}}
 function invMes(id){const v=ST.cart.inv[id];return v!=null&&v!==''?Number(v):(INVERSION_FIJA[id]||0);}
@@ -811,6 +819,7 @@ function renderCartera(from,to,dl){
   const shareItems=[...on].sort((a,b)=>b.venta-a.venta).map(r=>({name:r.cfg.name+(r.cfg.sub?' · '+r.cfg.sub:''),val:r.venta}));
 
   const MASK='<span style="color:var(--ink3)">****</span>';
+  const W=(id,col,html)=>`<span class="cw">${cellEye(id,col)}${html}</span>`;
   const body=rows.map(r=>{
     const share=venta>0&&r.incl&&!r.loading?r.venta/venta*100:0;
     const cc=r.cfg.cc;
@@ -828,14 +837,13 @@ function renderCartera(from,to,dl){
     const del=r.custom?`<button class="cbtn" title="Quitar" onclick="delCustom('${r.id}')">✕</button>`:'';
     return`<tr class="${r.incl?'':'off'}">
       <td><input type="checkbox" ${r.incl?'checked':''} onchange="toggleIncl('${r.id}',this.checked)" title="Incluir en los totales"></td>
-      <td style="white-space:nowrap">${eyeBtn(hname,`toggleName('${r.id}')`,'Ocultar / mostrar el nombre')}${eyeBtn(!!ST.hide.d[r.id],`toggleData('${r.id}')`,'Ocultar / mostrar las cifras de este cliente')}</td>
-      <td>${nameCell}</td>
-      <td style="text-align:right">${ventaCell}</td>
-      <td style="text-align:right">${invCell}</td>
-      <td style="text-align:right">${hd(r.id,'inv')?MASK:(r.loading?'…':fmtF(r.inv))}</td>
-      <td style="text-align:right;font-weight:800;color:${roasCol(r.roas)}">${hd(r.id,'roas')?MASK:(r.roas!=null?r.roas.toFixed(2)+'×':'—')}</td>
-      <td style="text-align:right">${hd(r.id,'cpv')?MASK:(r.n>0&&r.inv>0?fmtF(r.inv/r.n):'—')}</td>
-      <td style="min-width:110px">${hd(r.id,'share')?MASK:`<div style="display:flex;align-items:center;gap:6px"><div class="mini" style="flex:1"><i style="width:${share.toFixed(1)}%;background:${cc}"></i></div><span style="font-size:11px;color:var(--ink2);width:34px;text-align:right">${share.toFixed(0)}%</span></div>`}</td>
+      <td><span class="cw" style="justify-content:flex-start">${eyeBtn(hname,`toggleName('${r.id}')`,'Ocultar / mostrar el nombre')}<span>${nameCell}</span></span></td>
+      <td style="text-align:right">${W(r.id,'venta',ventaCell)}</td>
+      <td style="text-align:right">${W(r.id,'invmes',invCell)}</td>
+      <td style="text-align:right">${W(r.id,'inv',hd(r.id,'inv')?MASK:(r.loading?'…':fmtF(r.inv)))}</td>
+      <td style="text-align:right;font-weight:800;color:${roasCol(r.roas)}">${W(r.id,'roas',hd(r.id,'roas')?MASK:(r.roas!=null?r.roas.toFixed(2)+'×':'—'))}</td>
+      <td style="text-align:right">${W(r.id,'cpv',hd(r.id,'cpv')?MASK:(r.n>0&&r.inv>0?fmtF(r.inv/r.n):'—'))}</td>
+      <td style="min-width:130px"><span class="cw" style="width:100%">${cellEye(r.id,'share')}${hd(r.id,'share')?MASK:`<div style="display:flex;align-items:center;gap:6px"><div class="mini" style="flex:1"><i style="width:${share.toFixed(1)}%;background:${cc}"></i></div><span style="font-size:11px;color:var(--ink2);width:34px;text-align:right">${share.toFixed(0)}%</span></div>`}</span></td>
       <td>${del}</td>
     </tr>`;
   }).join('');
@@ -863,9 +871,9 @@ function renderCartera(from,to,dl){
     </div>
 
     <div class="twrap"><table class="cart-tbl">
-      <thead><tr><th></th><th>Ocultar</th><th>Cliente</th>${th('venta','Venta (periodo)')}${th('invmes','Inversión / mes')}${th('inv','Inversión (periodo)')}${th('roas','ROAS')}${th('cpv','Costo × venta')}<th>% de la cartera<button class="eye th-eye ${ST.hide.c.share?'off':''}" title="Ocultar / mostrar esta columna" onclick="toggleCol('share')">${ST.hide.c.share?'🙈':'👁'}</button></th><th></th></tr></thead>
+      <thead><tr><th></th><th>Cliente</th>${th('venta','Venta (periodo)')}${th('invmes','Inversión / mes')}${th('inv','Inversión (periodo)')}${th('roas','ROAS')}${th('cpv','Costo × venta')}<th>% de la cartera${eyeBtn(!!ST.hide.c.share,`toggleCol('share')`,'Ocultar / mostrar esta columna').replace('class="eye','class="eye th-eye')}</th><th></th></tr></thead>
       <tbody>${body}</tbody>
-      <tfoot><tr><td></td><td></td><td>Total cartera</td><td style="text-align:right">${tf('venta',fmtF(venta))}</td><td></td><td style="text-align:right">${tf('inv',fmtF(inv))}</td><td style="text-align:right;color:${roasCol(roas)}">${tf('roas',roas!=null?roas.toFixed(2)+'×':'—')}</td><td style="text-align:right">${tf('cpv',cpv?fmtF(cpv):'—')}</td><td></td><td></td></tr></tfoot>
+      <tfoot><tr><td></td><td>Total cartera</td><td style="text-align:right">${tf('venta',fmtF(venta))}</td><td></td><td style="text-align:right">${tf('inv',fmtF(inv))}</td><td style="text-align:right;color:${roasCol(roas)}">${tf('roas',roas!=null?roas.toFixed(2)+'×':'—')}</td><td style="text-align:right">${tf('cpv',cpv?fmtF(cpv):'—')}</td><td></td><td></td></tr></tfoot>
     </table></div>
     <p class="cnote">ROAS = ${baseLbl} ÷ inversión. La inversión mensual se prorratea a los días del periodo elegido; Ensífera usa la inversión real de Meta Ads salvo que escribas un valor. Marca o desmarca clientes para recalcular los totales. Los cambios se guardan en este navegador.</p>
   </div>
@@ -1164,8 +1172,8 @@ window.addEventListener('DOMContentLoaded',()=>{
     <div class="dot loading" id="sdot"></div>
     <span class="sync-lbl" id="slbl">Conectando…</span>
   </div>
-  <button class="hdr-btn" id="eyeN" title="Ocultar nombres de clientes en el Home" onclick="toggleAll('n')">👁 Nombres</button>
-  <button class="hdr-btn" id="eyeD" title="Ocultar cifras en el Home" onclick="toggleAll('d')">👁 Datos</button>
+  <button class="hdr-btn" id="eyeN" title="Ocultar nombres de clientes en el Home" onclick="toggleAll('n')">Nombres</button>
+  <button class="hdr-btn" id="eyeD" title="Ocultar cifras en el Home" onclick="toggleAll('d')">Datos</button>
   <button class="hdr-btn" id="syncbtn">⟳ Sincronizar</button>
   <button class="hdr-btn" id="tbtn">☀</button>
 </div>
