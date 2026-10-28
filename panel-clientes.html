@@ -156,6 +156,24 @@ tr:hover td{background:var(--card2);}
 .rec-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
 .rec-fill{height:100%;border-radius:4px;background:var(--green);transition:width .5s;}
 
+/* ── Cartera ── */
+.cart-ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+.seg button{padding:4px 10px;font-size:11px;font-weight:600;color:var(--ink2);}
+.seg button.on{background:var(--card2);color:var(--ink);}
+.cbtn{padding:4px 10px;font-size:11px;font-weight:600;border:1px solid var(--border);border-radius:6px;color:var(--ink2);transition:all var(--t);}
+.cbtn:hover{background:var(--card2);color:var(--ink);}
+.cinput{width:118px;background:var(--card2);border:1px solid var(--border);border-radius:5px;padding:4px 7px;font-size:12px;outline:none;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums;}
+.cinput.txt{width:130px;text-align:left;}
+.cinput:focus{border-color:#6366f1;}
+.cart-tbl td,.cart-tbl th{white-space:nowrap;}
+.cart-tbl tr.off td{opacity:.4;}
+.cart-tbl tfoot td{font-weight:800;border-top:2px solid var(--border);border-bottom:none;}
+.cdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;}
+.mini{height:5px;min-width:70px;background:var(--border);border-radius:3px;overflow:hidden;}
+.mini i{display:block;height:100%;border-radius:3px;}
+.cnote{font-size:11px;color:var(--ink3);margin-top:10px;line-height:1.5;}
+
 /* ── Responsive ── */
 @media(max-width:640px){
   .dgrid{grid-template-columns:1fr;}
@@ -219,6 +237,17 @@ const ST={
 };
 try{ST.ads=JSON.parse(localStorage.getItem('jkm_ads')||'{}');}catch(e){}
 try{const th=localStorage.getItem('jkm_theme');if(th)ST.theme=th;}catch(e){}
+
+// ── Cartera de inversión de JK Marketing (editable; se guarda en este navegador) ──
+// inv: inversión mensual por cliente que reemplaza a INVERSION_FIJA · incl: false = fuera de los totales
+// custom: clientes manuales {id,name,venta,inv} (mensuales) · base: 'total' | 'pauta'
+ST.cart={inv:{},incl:{},custom:[],base:'pauta'};
+try{const c=JSON.parse(localStorage.getItem('jkm_cartera')||'null');if(c)ST.cart=Object.assign(ST.cart,c);}catch(e){}
+function saveCart(){try{localStorage.setItem('jkm_cartera',JSON.stringify(ST.cart));}catch(e){}}
+function invMes(id){const v=ST.cart.inv[id];return v!=null&&v!==''?Number(v):(INVERSION_FIJA[id]||0);}
+function isIncl(id){return ST.cart.incl[id]!==false;}
+// La inversión mensual se prorratea a los días del periodo (hasta hoy) para que el ROAS sea comparable
+function factorPeriodo(from,to){const t=today();const end=to<t?to:t;return Math.max(diffDays(from,end)+1,1)/30.4375;}
 
 // ============================================================
 // UTILS
@@ -676,9 +705,10 @@ function renderHome(){
       const rc=agg.roas>=3?'var(--green)':agg.roas>=1.5?'var(--gold)':'var(--red)';
       roasHtml=`<div><div class="ck-lbl">ROAS</div><div class="ck-val" style="color:${rc}">${agg.roas.toFixed(2)}×</div></div>
         <div><div class="ck-lbl">Inversión</div><div class="ck-val">${fmt(agg.inversion||0)}</div></div>`;
-    } else if(INVERSION_FIJA[cfg.id]){
-      const inv=INVERSION_FIJA[cfg.id];
-      const roas=agg.total>0?agg.total/inv:null;
+    } else if(invMes(cfg.id)){
+      const inv=invMes(cfg.id)*factorPeriodo(from,to);
+      const pautaV=cfg.type==='muebles'?(agg.byOrigen||[]).filter(x=>x.name.startsWith('PAUTA')).reduce((s,x)=>s+x.val,0):agg.total;
+      const roas=pautaV>0?pautaV/inv:null;
       if(roas!=null){const rc=roas>=3?'var(--green)':roas>=1.5?'var(--gold)':'var(--red)';roasHtml=`<div><div class="ck-lbl">ROAS</div><div class="ck-val" style="color:${rc}">${roas.toFixed(2)}×</div></div>`;}
     }
 
@@ -700,14 +730,126 @@ function renderHome(){
     </div>`;
   });
 
-  return`<div class="hstats">
-    <div class="hstat"><div class="hstat-lbl">Cartera total</div><div class="hstat-val">${fmt(totCart)}</div></div>
-    <div class="hstat"><div class="hstat-lbl">Transacciones</div><div class="hstat-val">${totV}</div></div>
-    <div class="hstat"><div class="hstat-lbl">Clientes</div><div class="hstat-val">${CLIENTS.length}</div></div>
-    <div class="hstat"><div class="hstat-lbl">Periodo</div><div class="hstat-val" style="font-size:13px">${dl}</div></div>
-  </div>
+  return`${renderCartera(from,to,dl)}
+  <div class="sec-ttl" style="margin:4px 2px 10px">Clientes <span>toca una tarjeta para ver el detalle</span></div>
   <div class="cgrid">${cards.join('')}</div>`;
 }
+
+// ============================================================
+// CARTERA GENERAL (Home)
+// ============================================================
+function roasCol(r){return r==null?'var(--ink2)':r>=3?'var(--green)':r>=1.5?'var(--gold)':'var(--red)';}
+function cartRows(from,to){
+  const f=factorPeriodo(from,to);
+  const rows=CLIENTS.map(cfg=>{
+    const loading=cfg.type==='ensifera'?ST.loading.ensifera:ST.loading[cfg.sheet];
+    const agg=clientAgg(cfg,from,to);
+    let pauta=agg.total||0;
+    if(cfg.type==='muebles')pauta=(agg.byOrigen||[]).filter(x=>x.name.startsWith('PAUTA')).reduce((s,x)=>s+x.val,0);
+    const venta=ST.cart.base==='pauta'?pauta:(agg.total||0);
+    const auto=cfg.type==='ensifera'&&(ST.cart.inv.ensifera==null||ST.cart.inv.ensifera==='');
+    const mes=auto?null:invMes(cfg.id);
+    const inv=auto?(agg.inversion||0):mes*f;
+    return{id:cfg.id,cfg,loading,agg,venta,total:agg.total||0,n:agg.n||0,mes,auto,inv,roas:inv>0?venta/inv:null,incl:isIncl(cfg.id),custom:false};
+  });
+  ST.cart.custom.forEach(c=>{
+    const mes=Number(c.inv)||0,vm=Number(c.venta)||0;
+    const inv=mes*f,venta=vm*f;
+    rows.push({id:c.id,cfg:{id:c.id,name:c.name||'Cliente manual',sub:'Manual',icon:'✎',cc:'#a78bfa'},loading:false,agg:{byDay:[]},venta,total:venta,n:0,mes,inv,roas:inv>0?venta/inv:null,incl:c.incl!==false,custom:true,vm,name:c.name});
+  });
+  return rows;
+}
+
+function renderCartera(from,to,dl){
+  const rows=cartRows(from,to);
+  const on=rows.filter(r=>r.incl&&!r.loading);
+  const sum=k=>on.reduce((s,r)=>s+(r[k]||0),0);
+  const venta=sum('venta'),inv=sum('inv'),n=sum('n');
+  const roas=inv>0?venta/inv:null;
+  const neto=venta-inv;
+  const cpv=n>0&&inv>0?inv/n:null;
+  const proj=on.reduce((s,r)=>s+(r.custom?r.venta:projection(r.agg.total||0,from,to).monthEnd),0);
+  const best=on.filter(r=>r.roas!=null).sort((a,b)=>b.roas-a.roas)[0];
+  const worst=on.filter(r=>r.roas!=null).sort((a,b)=>a.roas-b.roas)[0];
+  const loading=rows.some(r=>r.loading);
+
+  // Serie diaria combinada
+  const dayMap={};
+  on.forEach(r=>(r.agg.byDay||[]).forEach(d=>{dayMap[d.name]=(dayMap[d.name]||0)+d.val;}));
+  const byDay=Object.entries(dayMap).map(([name,val])=>({name,val}));
+  const shareItems=[...on].sort((a,b)=>b.venta-a.venta).map(r=>({name:r.cfg.name+(r.cfg.sub?' · '+r.cfg.sub:''),val:r.venta}));
+
+  const body=rows.map(r=>{
+    const share=venta>0&&r.incl&&!r.loading?r.venta/venta*100:0;
+    const cc=r.cfg.cc;
+    const nameCell=r.custom
+      ?`<input class="cinput txt" value="${(r.name||'').replace(/"/g,'&quot;')}" placeholder="Nombre" onchange="updCustom('${r.id}','name',this.value)">`
+      :`<span class="cdot" style="background:${cc}"></span>${r.cfg.name} <span style="color:var(--ink3)">· ${r.cfg.sub}</span>`;
+    const ventaCell=r.custom
+      ?`<input class="cinput" inputmode="numeric" title="Venta mensual generada" value="${r.vm?new Intl.NumberFormat('es-CO').format(r.vm):''}" placeholder="venta/mes" onchange="updCustom('${r.id}','venta',this.value)">`
+      :(r.loading?'<span style="color:var(--ink3)">…</span>':fmtF(r.venta));
+    const invCell=r.custom
+      ?`<input class="cinput" inputmode="numeric" value="${r.mes?new Intl.NumberFormat('es-CO').format(r.mes):''}" placeholder="inversión/mes" onchange="updCustom('${r.id}','inv',this.value)">`
+      :`<input class="cinput" inputmode="numeric" value="${r.auto?'':new Intl.NumberFormat('es-CO').format(r.mes)}" placeholder="${r.auto?'Real Meta Ads':'0'}" onchange="setInv('${r.id}',this.value)">`;
+    const del=r.custom?`<button class="cbtn" title="Quitar" onclick="delCustom('${r.id}')">✕</button>`:'';
+    return`<tr class="${r.incl?'':'off'}">
+      <td><input type="checkbox" ${r.incl?'checked':''} onchange="toggleIncl('${r.id}',this.checked)" title="Incluir en los totales"></td>
+      <td>${nameCell}</td>
+      <td style="text-align:right">${ventaCell}</td>
+      <td style="text-align:right">${invCell}</td>
+      <td style="text-align:right">${r.loading?'…':fmtF(r.inv)}</td>
+      <td style="text-align:right;font-weight:800;color:${roasCol(r.roas)}">${r.roas!=null?r.roas.toFixed(2)+'×':'—'}</td>
+      <td style="text-align:right">${r.n>0&&r.inv>0?fmtF(r.inv/r.n):'—'}</td>
+      <td style="min-width:110px"><div style="display:flex;align-items:center;gap:6px"><div class="mini" style="flex:1"><i style="width:${share.toFixed(1)}%;background:${cc}"></i></div><span style="font-size:11px;color:var(--ink2);width:34px;text-align:right">${share.toFixed(0)}%</span></div></td>
+      <td>${del}</td>
+    </tr>`;
+  }).join('');
+
+  const baseLbl=ST.cart.base==='pauta'?'venta atribuida a pauta (muebles: origen PAUTA)':'venta total de cada cliente';
+  return`<div class="sec" style="margin-bottom:14px">
+    <div class="sec-ttl">Cartera de inversión · JK Marketing <span>${dl}${loading?' · sincronizando…':''}</span></div>
+    <div class="krow" style="margin-bottom:14px">
+      <div class="ktile"><div class="kt-lbl">Venta generada</div><div class="kt-val grn">${fmt(venta)}</div><div class="kt-sub">${on.length} clientes incluidos</div></div>
+      <div class="ktile"><div class="kt-lbl">Inversión en pauta</div><div class="kt-val">${fmt(inv)}</div><div class="kt-sub">${fmtF(inv)}</div></div>
+      <div class="ktile"><div class="kt-lbl">ROAS de la cartera</div><div class="kt-val" style="color:${roasCol(roas)}">${roas!=null?roas.toFixed(2)+'×':'—'}</div><div class="kt-sub">por cada $1 invertido, $${roas!=null?roas.toFixed(2):'—'}</div></div>
+      <div class="ktile"><div class="kt-lbl">Retorno neto</div><div class="kt-val" style="color:${neto>=0?'var(--green)':'var(--red)'}">${fmt(neto)}</div><div class="kt-sub">venta − inversión</div></div>
+      <div class="ktile"><div class="kt-lbl">Transacciones</div><div class="kt-val">${n}</div><div class="kt-sub">${cpv?'Costo por venta '+fmt(cpv):''}</div></div>
+      <div class="ktile"><div class="kt-lbl">Proy. fin de mes</div><div class="kt-val gld">${fmt(proj)}</div><div class="kt-sub">ritmo actual de la cartera</div></div>
+      <div class="ktile"><div class="kt-lbl">Mejor ROAS</div><div class="kt-val" style="font-size:16px">${best?best.cfg.name:'—'}</div><div class="kt-sub">${best?best.roas.toFixed(2)+'×':''}${worst&&worst!==best?' · Menor: '+worst.cfg.name+' '+worst.roas.toFixed(2)+'×':''}</div></div>
+    </div>
+
+    <div class="cart-ctl" style="margin-bottom:10px;justify-content:space-between">
+      <div class="cart-ctl"><span style="font-size:11px;color:var(--ink2)">Base del ROAS:</span>
+        <div class="seg"><button class="${ST.cart.base==='pauta'?'on':''}" onclick="setBase('pauta')">Solo pauta</button><button class="${ST.cart.base==='total'?'on':''}" onclick="setBase('total')">Venta total</button></div>
+      </div>
+      <div class="cart-ctl"><button class="cbtn" onclick="addCustom()">+ Agregar cliente</button><button class="cbtn" onclick="resetCart()">Restablecer</button></div>
+    </div>
+
+    <div class="twrap"><table class="cart-tbl">
+      <thead><tr><th></th><th>Cliente</th><th style="text-align:right">Venta (periodo)</th><th style="text-align:right">Inversión / mes</th><th style="text-align:right">Inversión (periodo)</th><th style="text-align:right">ROAS</th><th style="text-align:right">Costo × venta</th><th>% de la cartera</th><th></th></tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr><td></td><td>Total cartera</td><td style="text-align:right">${fmtF(venta)}</td><td></td><td style="text-align:right">${fmtF(inv)}</td><td style="text-align:right;color:${roasCol(roas)}">${roas!=null?roas.toFixed(2)+'×':'—'}</td><td style="text-align:right">${cpv?fmtF(cpv):'—'}</td><td></td><td></td></tr></tfoot>
+    </table></div>
+    <p class="cnote">ROAS = ${baseLbl} ÷ inversión. La inversión mensual se prorratea a los días del periodo elegido; Ensífera usa la inversión real de Meta Ads salvo que escribas un valor. Marca o desmarca clientes para recalcular los totales. Los cambios se guardan en este navegador.</p>
+  </div>
+
+  <div class="dgrid">
+    <div class="sec"><div class="sec-ttl">Venta diaria de la cartera</div>${trendChart(byDay,'#6366f1')}</div>
+    <div class="sec"><div class="sec-ttl">Venta por cliente</div>${bars(shareItems,'#6366f1',9)}</div>
+  </div>`;
+}
+
+function setInv(id,val){const v=pm(val);if(!String(val||'').trim())delete ST.cart.inv[id];else ST.cart.inv[id]=v;saveCart();renderCurrent();}
+function toggleIncl(id,on){
+  const c=ST.cart.custom.find(x=>x.id===id);
+  if(c)c.incl=on;else ST.cart.incl[id]=on;
+  saveCart();renderCurrent();
+}
+function setBase(b){ST.cart.base=b;saveCart();renderCurrent();}
+function addCustom(){ST.cart.custom.push({id:'x'+Date.now().toString(36),name:'',venta:0,inv:0,incl:true});saveCart();renderCurrent();}
+function updCustom(id,f,val){const c=ST.cart.custom.find(x=>x.id===id);if(!c)return;c[f]=f==='name'?val:pm(val);saveCart();renderCurrent();}
+function delCustom(id){ST.cart.custom=ST.cart.custom.filter(x=>x.id!==id);saveCart();renderCurrent();}
+function resetCart(){if(!confirm('¿Restablecer la cartera a los valores originales?'))return;ST.cart={inv:{},incl:{},custom:[],base:'pauta'};saveCart();renderCurrent();}
 
 // ============================================================
 // RENDER DETAIL
@@ -724,7 +866,7 @@ function renderDetail(cid){
   // ROAS
   const am=ST.adsMonth;
   const isEnsifera=cfg.type==='ensifera';
-  const inv=isEnsifera?(agg.inversion||0):(INVERSION_FIJA[cid]||getAdv(cid,am));
+  const inv=isEnsifera?(agg.inversion||0):(invMes(cid)*factorPeriodo(from,to)||getAdv(cid,am));
   let pauta=0;
   if(cfg.type==='muebles'){pauta=(agg.byOrigen||[]).filter(x=>x.name.startsWith('PAUTA')).reduce((s,x)=>s+x.val,0);}
   else if(isEnsifera){pauta=agg.total||0;}
@@ -896,8 +1038,9 @@ function renderDetail(cid){
     <div class="mtabs">${mtabs}</div>
     <div class="roas-grid">
       <div class="rrow">
-        <div class="r-lbl">Inversión mensual fija</div>
-        <div style="font-size:22px;font-weight:800;margin:6px 0;color:var(--ink1)">${fmtF(INVERSION_FIJA[cid]||0)}</div>
+        <div class="r-lbl">Inversión mensual (editable en el Home)</div>
+        <div style="font-size:22px;font-weight:800;margin:6px 0;color:var(--ink1)">${fmtF(invMes(cid))}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">En el periodo: ${fmtF(inv)}</div>
         <div class="rres"><span>ROAS</span><span class="rresv" style="color:${roasColor}">${roas?roas.toFixed(2)+'×':'—'}</span></div>
         <div class="rres" style="margin-top:3px"><span>Costo × venta</span><span class="rresv">${cpv?fmtF(cpv):'—'}</span></div>
       </div>
@@ -971,7 +1114,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   ST.preset='30';
   renderCurrent();
   syncAll();
-  setInterval(syncAll,300000);
+  setInterval(()=>{const el=document.activeElement;if(el&&el.tagName==='INPUT'&&el.classList.contains('cinput'))return;syncAll();},300000);
 });
 </script>
 
