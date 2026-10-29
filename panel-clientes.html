@@ -353,9 +353,12 @@ function parseMueRow(r){
 }
 
 function parseLiliRow(r){
-  const iso=toISO(r[0]);if(!iso)return null;
-  const total=pm(r[6]);if(!total)return null;
-  const valida=(r[22]||'').trim()==='1';
+  let iso=toISO(r[0]);if(!iso)return null;
+  // Años mal digitados en la hoja ("0226-06-12", "2029-08-29"): se asume el año en curso
+  const yy=Number(iso.slice(0,4)),yNow=new Date().getFullYear();
+  if(yy<2025||yy>yNow)iso=yNow+iso.slice(4);
+  const total=pm(r[6]);if(!total)return null; // [6] = Precio venta
+  const valida=(r[24]||'').trim()==='1'; // [24] = Venta válida (22 = Mes, 23 = Semana)
   return{fecha:iso,cliente:(r[1]||'').trim(),ciudad:(r[2]||'').trim().toUpperCase(),total,metodoPago:(r[7]||'').trim()||'Otro',canal:(r[8]||'').trim()||'Otro',tipo:(r[9]||'').trim()||'Otro',referencia:(r[11]||'').trim()||'—',estado:(r[17]||'').trim()||'Sin estado',asesor:(r[18]||'').trim()||'Sin asesor',valida};
 }
 
@@ -582,15 +585,20 @@ function aggLiliTracking(trackingRows,from,to){
 }
 
 function aggLili(rows,trackingRows,from,to){
-  const base=rows?rows.filter(r=>r.valida&&r.total>0):[];
+  // Total de ventas = suma de la columna "Precio venta" de BASE_VENTAS (todas las filas del periodo).
+  // La pestaña de seguimiento solo aporta contactos/cotizaciones (y es respaldo si BASE_VENTAS no cargó).
+  const base=rows?rows.filter(r=>r.total>0):[];
   const trk=aggLiliTracking(trackingRows,from,to);
-  const total=trk?trk.valor:base.reduce((s,r)=>s+r.total,0);
-  const n=trk?trk.ventas:base.length;
+  const hasBase=!!(rows&&rows.length);
+  const total=hasBase?base.reduce((s,r)=>s+r.total,0):(trk?trk.valor:0);
+  const validas=base.filter(r=>r.valida);
+  const n=hasBase?validas.length:(trk?trk.ventas:0); // unidades: sin filas resumen "VENTA MES …"
+  const totalValidas=validas.reduce((s,r)=>s+r.total,0);
   const contactos=trk?trk.contactos:null;
   const cotizaciones=trk?trk.cotizaciones:null;
   const conv=contactos>0?n/contactos:null;
   return{
-    total,n,ticket:n?total/n:0,contactos,cotizaciones,conv,
+    total,n,ticket:n?totalValidas/n:0,contactos,cotizaciones,conv,
     byCanal:groupBy(base,r=>r.canal,r=>r.total),
     byMetodo:groupBy(base,r=>r.metodoPago,r=>r.total),
     byCiudad:groupBy(base,r=>r.ciudad,r=>r.total),
