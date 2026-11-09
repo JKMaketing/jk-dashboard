@@ -212,6 +212,36 @@ th.srt:hover{color:var(--ink);}
 th.num,td.num{text-align:right;}
 .tcnt{font-size:11px;color:var(--ink2);}
 
+/* ── Cuadros con control propio, cruce y periodos ── */
+.dctl{display:flex;gap:6px;margin-bottom:8px;}
+.dsearch{flex:1;min-width:0;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;outline:none;color:var(--ink);}
+.dsearch:focus{border-color:#6366f1;}
+.dsel{background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:11px;color:var(--ink);outline:none;}
+.brow.ex{border-color:var(--red);}
+.brow.ex .bname{text-decoration:line-through;color:var(--ink2);}
+.fgrp{display:inline-flex;gap:5px;align-items:center;flex-wrap:wrap;background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:3px 6px 3px 10px;font-size:12px;font-weight:600;}
+.fgrp b{color:var(--ink2);font-weight:600;}
+.fmode{padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;background:var(--card);border:1px solid var(--border);color:var(--ink);}
+.fmode.ex{background:#f5656522;border-color:var(--red);color:var(--red);}
+.fval{display:inline-flex;gap:3px;align-items:center;}
+.fval button{width:16px;height:16px;border-radius:50%;line-height:1;font-size:12px;color:var(--ink2);}
+.fval button:hover{background:var(--border);color:var(--ink);}
+.pvwrap{overflow-x:auto;}
+.pv{border-collapse:separate;border-spacing:2px;width:auto;min-width:100%;}
+.pv th,.pv td{border:0;padding:6px 9px;font-size:11px;white-space:nowrap;}
+.pv th.pvh{cursor:pointer;color:var(--ink);text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;}
+.pv th.pvh:hover{color:var(--ink2);}
+.pv td.pvc{text-align:right;border-radius:5px;cursor:pointer;font-variant-numeric:tabular-nums;}
+.pv td.pvc:hover{outline:2px solid var(--ink2);}
+.pv td.pvc.on{outline:2px solid var(--ink);}
+.pv .pvt{font-weight:800;color:var(--ink);text-align:right;}
+.pvctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;font-size:12px;color:var(--ink2);}
+.prow{cursor:pointer;}
+.prow.on td{background:var(--card2);}
+.pbar{height:6px;min-width:90px;background:var(--border);border-radius:3px;overflow:hidden;}
+.pbar i{display:block;height:100%;border-radius:3px;}
+.pscroll{max-height:440px;overflow:auto;}
+
 /* ── Responsive ── */
 @media(max-width:640px){
   .dgrid{grid-template-columns:1fr;}
@@ -608,7 +638,7 @@ const DIMS={
 const DIM_MAIN={muebles:6,lili:4,stetic:2};
 const DIM_VAL={muebles:r=>r.total,lili:r=>r.total,stetic:r=>r.valorAgendado};
 const DIM_UNIT={muebles:'v.',lili:'v.',stetic:'ag.'};
-ST.flt={};ST.exp={};ST.tbl={};ST._dim={};ST._rows={};
+ST.flt={};ST.fx={};ST.exp={};ST.tbl={};ST._dim={};ST._rows={};ST._dimRows={};ST.bq={};ST.bs={};ST.gran={};ST.pv={};ST._pvR={};ST._pvC={};
 function fltOf(cid){return ST.flt[cid]||{};}
 function hasFlt(cid){return Object.values(fltOf(cid)).some(a=>a&&a.length);}
 function baseRows(cfg,from,to){
@@ -620,11 +650,11 @@ function baseRows(cfg,from,to){
   if(cfg.type==='stetic')return filterRows(ST.raw.stetic,from,to);
   return[];
 }
-function applyFlt(rows,cfg,skip){
-  const f=fltOf(cfg.id);let out=rows;
+function applyFlt(rows,cfg,skip,skip2){
+  const f=fltOf(cfg.id),fx=ST.fx[cfg.id]||{};let out=rows;
   (DIMS[cfg.type]||[]).forEach(d=>{
-    if(d.k===skip)return;const a=f[d.k];
-    if(a&&a.length){const set=new Set(a);out=out.filter(r=>set.has(d.get(r)));}
+    if(d.k===skip||d.k===skip2)return;const a=f[d.k];
+    if(a&&a.length){const set=new Set(a);out=fx[d.k]?out.filter(r=>!set.has(d.get(r))):out.filter(r=>set.has(d.get(r)));}
   });
   return out;
 }
@@ -1124,6 +1154,8 @@ function renderDetail(cid){
   ${filterBar(cid,cfg)}
   ${specific}
   ${dimsH.more}
+  ${pivotSection(cid,cfg,from,to)}
+  ${periodSection(cid,cfg,from,to)}
 
   <div class="sec" style="margin-bottom:12px">
     ${isEnsifera?`
@@ -1179,38 +1211,135 @@ function togFlt(cid,k,i){
   const v=(ST._dim[cid+'|'+k]||[])[i];if(v==null)return;
   const f=ST.flt[cid]=ST.flt[cid]||{};const a=f[k]=f[k]||[];
   const ix=a.indexOf(v);if(ix>=0)a.splice(ix,1);else a.push(v);
-  if(!a.length)delete f[k];
+  if(!a.length){delete f[k];if(ST.fx[cid])delete ST.fx[cid][k];}
   ST.tbl[cid]=Object.assign(ST.tbl[cid]||{},{lim:50});
   renderCurrent();
 }
 function clrFlt(cid,k,v){
-  if(k==null){ST.flt[cid]={};}
-  else if(v==null){delete (ST.flt[cid]||{})[k];}
-  else{const a=(ST.flt[cid]||{})[k]||[];const ix=a.indexOf(v);if(ix>=0)a.splice(ix,1);if(!a.length)delete ST.flt[cid][k];}
+  if(k==null){ST.flt[cid]={};ST.fx[cid]={};}
+  else if(v==null){delete (ST.flt[cid]||{})[k];if(ST.fx[cid])delete ST.fx[cid][k];}
+  else{const a=(ST.flt[cid]||{})[k]||[];const ix=a.indexOf(v);if(ix>=0)a.splice(ix,1);if(!a.length){delete ST.flt[cid][k];if(ST.fx[cid])delete ST.fx[cid][k];}}
   renderCurrent();
 }
+function togFx(cid,k){const fx=ST.fx[cid]=ST.fx[cid]||{};fx[k]=!fx[k];renderCurrent();}
 function togExp(key){ST.exp[key]=!ST.exp[key];renderCurrent();}
+
+// Lista de un cuadro: busca, ordena y marca lo seleccionado (se redibuja sola al escribir)
+function dimList(cid,cfg,dim){
+  const key=cid+'|'+dim.k;const rows=ST._dimRows[key]||[];
+  let items=groupBy(rows,dim.get,DIM_VAL[cfg.type]);
+  const tot=items.reduce((s,x)=>s+x.val,0)||1;
+  const sel=new Set(fltOf(cid)[dim.k]||[]);const ex=!!(ST.fx[cid]||{})[dim.k];
+  sel.forEach(v=>{if(!items.find(x=>x.name===v))items.push({name:v,val:0,count:0});});
+  const q=(ST.bq[key]||'').trim().toLowerCase();const so=ST.bs[key]||'val';
+  if(q)items=items.filter(x=>x.name.toLowerCase().includes(q)||sel.has(x.name));
+  items.sort(so==='name'?(a,b)=>a.name.localeCompare(b.name,'es'):so==='cnt'?(a,b)=>b.count-a.count||b.val-a.val:(a,b)=>b.val-a.val);
+  ST._dim[key]=items.map(x=>x.name);
+  const mx=Math.max(...items.map(x=>x.val),1);
+  const open=!!ST.exp[key]||!!q;const LIM=8;
+  const shown=items.map((x,i)=>({x,i})).filter(({x,i})=>open||i<LIM||sel.has(x.name));
+  const h=shown.map(({x,i})=>{
+    const on=sel.has(x.name);const dm=sel.size&&!on;
+    return`<div class="brow clk ${on?(ex?'sel ex':'sel'):''} ${dm?'dim':''}" style="--cc:${cfg.cc}" onclick="togFlt('${cid}','${dim.k}',${i})" title="Clic para ${on?'quitar':(ex?'excluir':'filtrar por')} ${esc(x.name)}">
+      <div class="bmeta"><span class="bname">${esc(x.name)}</span>
+      <span class="bval">${fmtF(x.val)} · ${x.count} ${DIM_UNIT[cfg.type]} <span class="bpct">${(x.val/tot*100).toFixed(0)}%</span></span></div>
+      <div class="btrack"><div class="bfill" style="width:${(x.val/mx*100).toFixed(1)}%;background:${on&&ex?'var(--red)':cfg.cc}"></div></div></div>`;
+  }).join('');
+  const more=!q&&items.length>LIM?`<button class="morebtn" onclick="togExp('${key}')">${ST.exp[key]?'Ver menos':'Ver todas ('+items.length+')'}</button>`:'';
+  return(h||'<p style="color:var(--ink3);font-size:12px">Sin resultados</p>')+more;
+}
+function dimRefresh(cid,k){
+  const cfg=CLIENTS.find(c=>c.id===cid),dim=(DIMS[cfg.type]||[]).find(d=>d.k===k);const el=$('dl-'+cid+'-'+k);
+  if(el&&dim)el.innerHTML=dimList(cid,cfg,dim);
+}
+function bqSet(cid,k,v){ST.bq[cid+'|'+k]=v;dimRefresh(cid,k);}
+function bsSet(cid,k,v){ST.bs[cid+'|'+k]=v;dimRefresh(cid,k);}
 
 function dimSection(cid,cfg,dim,base){
   const rows=applyFlt(cfg.type==='stetic'?base.filter(r=>r.servicio):base,cfg,dim.k);
-  let items=groupBy(rows,dim.get,DIM_VAL[cfg.type]);
-  const sel=new Set(fltOf(cid)[dim.k]||[]);
-  sel.forEach(v=>{if(!items.find(x=>x.name===v))items.push({name:v,val:0,count:0});});
-  const key=cid+'|'+dim.k;
-  ST._dim[key]=items.map(x=>x.name);
-  const tot=items.reduce((s,x)=>s+x.val,0)||1;const mx=Math.max(...items.map(x=>x.val),1);
-  const open=!!ST.exp[key];const LIM=8;
-  const shown=items.map((x,i)=>({x,i})).filter(({x,i})=>open||i<LIM||sel.has(x.name));
-  const rowsH=shown.map(({x,i})=>{
-    const on=sel.has(x.name);const dim_=sel.size&&!on;
-    return`<div class="brow clk ${on?'sel':''} ${dim_?'dim':''}" style="--cc:${cfg.cc}" onclick="togFlt('${cid}','${dim.k}',${i})" title="Clic para filtrar por ${esc(x.name)}">
-      <div class="bmeta"><span class="bname">${esc(x.name)}</span>
-      <span class="bval">${fmtF(x.val)} · ${x.count} ${DIM_UNIT[cfg.type]} <span class="bpct">${(x.val/tot*100).toFixed(0)}%</span></span></div>
-      <div class="btrack"><div class="bfill" style="width:${(x.val/mx*100).toFixed(1)}%;background:${cfg.cc}"></div></div></div>`;
-  }).join('');
-  const more=items.length>LIM?`<button class="morebtn" onclick="togExp('${key}')">${open?'Ver menos':'Ver todas ('+items.length+')'}</button>`:'';
-  return`<div class="sec"><div class="sec-ttl">${dim.l} <span>${items.length} · clic para filtrar</span></div>${rowsH||'<p style="color:var(--ink3);font-size:12px">Sin datos</p>'}${more}</div>`;
+  const key=cid+'|'+dim.k;ST._dimRows[key]=rows;
+  const n=new Set(rows.map(dim.get)).size;
+  const ctl=n>6?`<div class="dctl"><input class="dsearch" type="search" placeholder="Buscar ${esc(dim.l.toLowerCase())}…" value="${esc(ST.bq[key]||'')}" oninput="bqSet('${cid}','${dim.k}',this.value)">
+    <select class="dsel" title="Ordenar" onchange="bsSet('${cid}','${dim.k}',this.value)">${[['val','Por valor'],['cnt','Por ventas'],['name','A–Z']].map(([v,l])=>`<option value="${v}" ${(ST.bs[key]||'val')===v?'selected':''}>${l}</option>`).join('')}</select></div>`:'';
+  return`<div class="sec"><div class="sec-ttl">${dim.l} <span>${n} · clic para filtrar</span></div>${ctl}<div id="dl-${cid}-${dim.k}">${dimList(cid,cfg,dim)}</div></div>`;
 }
+
+// ── Cruce: dos datos a la vez (p. ej. ciudad × forma de pago) ──
+function setPv(cid,w,v){const p=ST.pv[cid]=Object.assign({},ST.pv[cid]||{});p[w]=v;ST.pv[cid]=p;renderCurrent();}
+function pvPick(cid,ri,ci){
+  const cfg=CLIENTS.find(c=>c.id===cid),dims=DIMS[cfg.type],p=ST.pv[cid];
+  const f=ST.flt[cid]=ST.flt[cid]||{};ST.fx[cid]=ST.fx[cid]||{};
+  const rn=ri>=0?(ST._pvR[cid]||[])[ri]:null,cn=ci>=0?(ST._pvC[cid]||[])[ci]:null;
+  if(rn!=null){f[p.r]=[rn];delete ST.fx[cid][p.r];}
+  if(cn!=null){f[p.c]=[cn];delete ST.fx[cid][p.c];}
+  renderCurrent();
+}
+function pivotSection(cid,cfg,from,to){
+  const dims=DIMS[cfg.type];if(!dims||dims.length<2)return'';
+  const p=ST.pv[cid]=Object.assign({r:dims[0].k,c:dims[1].k,m:'val'},ST.pv[cid]||{});
+  const dr=dims.find(d=>d.k===p.r)||dims[0];let dc=dims.find(d=>d.k===p.c)||dims[1];if(dc.k===dr.k)dc=dims.find(d=>d.k!==dr.k);
+  let rows=baseRows(cfg,from,to);if(cfg.type==='stetic')rows=rows.filter(r=>r.servicio);
+  rows=applyFlt(rows,cfg,dr.k,dc.k);
+  const vf=DIM_VAL[cfg.type],cnt=p.m==='cnt';
+  const val=r=>cnt?1:vf(r);
+  const rt={},ct={},cell={};
+  rows.forEach(r=>{const a=dr.get(r),b=dc.get(r),v=val(r);rt[a]=(rt[a]||0)+v;ct[b]=(ct[b]||0)+v;(cell[a]=cell[a]||{})[b]=(cell[a][b]||0)+v;});
+  const RN=Object.keys(rt).sort((a,b)=>rt[b]-rt[a]),CN=Object.keys(ct).sort((a,b)=>ct[b]-ct[a]);
+  const R=RN.slice(0,12),C=CN.slice(0,8);ST._pvR[cid]=R;ST._pvC[cid]=C;
+  const sel=k=>new Set(fltOf(cid)[k]||[]);const sr=sel(dr.k),sc=sel(dc.k);
+  const mx=Math.max(1,...R.map(a=>Math.max(...C.map(b=>(cell[a]||{})[b]||0))));
+  const show=v=>cnt?String(v):fmt(v);
+  const opts=cur=>dims.map(d=>`<option value="${d.k}" ${d.k===cur?'selected':''}>${d.l}</option>`).join('');
+  const body=R.map((a,ri)=>`<tr><th class="pvh" onclick="pvPick('${cid}',${ri},-1)" title="Filtrar por ${esc(a)}">${sr.has(a)?'● ':''}${esc(a)}</th>${C.map((b,ci)=>{
+    const v=(cell[a]||{})[b]||0;const al=v?Math.round(20+v/mx*130).toString(16).padStart(2,'0'):'00';
+    return`<td class="pvc ${sr.has(a)&&sc.has(b)?'on':''}" style="background:${cfg.cc}${al}" title="${esc(a)} · ${esc(b)}: ${cnt?v+' ventas':fmtF(v)}" onclick="pvPick('${cid}',${ri},${ci})">${v?show(v):'·'}</td>`;}).join('')}<td class="pvt">${show(rt[a])}</td></tr>`).join('');
+  const head=`<tr><th></th>${C.map((b,ci)=>`<th class="pvh" onclick="pvPick('${cid}',-1,${ci})" title="Filtrar por ${esc(b)}">${sc.has(b)?'● ':''}${esc(b)}</th>`).join('')}<th class="pvt">Total</th></tr>`;
+  const foot=`<tr><th class="pvh" style="cursor:default">Total</th>${C.map(b=>`<td class="pvt">${show(ct[b])}</td>`).join('')}<td class="pvt">${show(rows.reduce((s,r)=>s+val(r),0))}</td></tr>`;
+  return`<div class="sec"><div class="sec-ttl">Cruce de datos <span>${esc(dr.l)} × ${esc(dc.l)} · clic en una celda para filtrar</span></div>
+    <div class="pvctl"><span>Filas</span><select class="dsel" onchange="setPv('${cid}','r',this.value)">${opts(dr.k)}</select>
+      <span>Columnas</span><select class="dsel" onchange="setPv('${cid}','c',this.value)">${opts(dc.k)}</select>
+      <span>Mostrar</span><div class="seg"><button class="${cnt?'':'on'}" onclick="setPv('${cid}','m','val')">Ventas $</button><button class="${cnt?'on':''}" onclick="setPv('${cid}','m','cnt')">N.º de ventas</button></div>
+      ${RN.length>R.length||CN.length>C.length?`<span style="color:var(--ink3)">Se muestran los ${R.length} y ${C.length} mayores</span>`:''}</div>
+    ${R.length?`<div class="pvwrap"><table class="pv"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>`:'<p style="color:var(--ink3);font-size:12px">Sin datos en el periodo y filtros actuales.</p>'}</div>`;
+}
+
+// ── Detalle por periodo: día, semana o mes ──
+function weekStart(iso){const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10);}
+function perKey(iso,g){return g==='mes'?iso.slice(0,7):g==='semana'?weekStart(iso):iso;}
+function perBounds(k,g){
+  if(g==='mes'){const[y,m]=k.split('-').map(Number);return[k+'-01',k+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0')];}
+  if(g==='semana')return[k,addDays(k,6)];return[k,k];
+}
+function perLabel(k,g){
+  if(g==='mes'){const[y,m]=k.split('-');return MES_SHORT[+m-1]+' '+y;}
+  if(g==='semana'){const e=addDays(k,6);return'Sem '+k.slice(8)+'/'+k.slice(5,7)+' – '+e.slice(8)+'/'+e.slice(5,7);}
+  const d=new Date(k+'T00:00:00');return['dom','lun','mar','mié','jue','vie','sáb'][d.getDay()]+' '+k.slice(8)+'/'+k.slice(5,7)+'/'+k.slice(2,4);
+}
+function setGran(cid,g){ST.gran[cid]=g;renderCurrent();}
+function perPick(a,b){ST.from=a;ST.to=b;ST.preset='';renderCurrent();}
+function periodSection(cid,cfg,from,to){
+  if(!DIMS[cfg.type])return'';
+  let rows=baseRows(cfg,from,to);if(cfg.type==='stetic')rows=rows.filter(r=>r.servicio);
+  rows=applyFlt(rows,cfg);
+  const days=diffDays(from,to)+1;
+  const g=ST.gran[cid]||(days<=35?'dia':days<=190?'semana':'mes');
+  const m={};rows.forEach(r=>{const k=perKey(r.fecha,g);const o=m[k]=m[k]||{val:0,n:0};o.val+=DIM_VAL[cfg.type](r);o.n++;});
+  const keys=Object.keys(m).sort();
+  const tot=keys.reduce((s,k)=>s+m[k].val,0)||1,mx=Math.max(1,...keys.map(k=>m[k].val));
+  const body=keys.slice().reverse().map(k=>{
+    const i=keys.indexOf(k),prev=i>0?m[keys[i-1]].val:null;const d=prev?(m[k].val-prev)/prev*100:null;
+    const[a,b]=perBounds(k,g);const on=ST.from===a&&ST.to===b;
+    return`<tr class="prow ${on?'on':''}" onclick="perPick('${a}','${b}')" title="Clic para ver solo este periodo"><td>${perLabel(k,g)}</td>
+      <td class="num">${fmtF(m[k].val)}</td><td class="num">${m[k].n}</td><td class="num">${fmtF(m[k].n?m[k].val/m[k].n:0)}</td>
+      <td class="num" style="color:${d==null?'var(--ink3)':d>=0?'var(--green)':'var(--red)'}">${d==null?'—':fmtPct(d)}</td>
+      <td class="num">${(m[k].val/tot*100).toFixed(0)}%</td><td style="min-width:110px"><div class="pbar"><i style="width:${(m[k].val/mx*100).toFixed(1)}%;background:${cfg.cc}"></i></div></td></tr>`;
+  }).join('');
+  const seg=[['dia','Día'],['semana','Semana'],['mes','Mes']].map(([v,l])=>`<button class="${g===v?'on':''}" onclick="setGran('${cid}','${v}')">${l}</button>`).join('');
+  return`<div class="sec"><div class="sec-ttl">Detalle por periodo <span>${hasFlt(cid)?'con tus filtros · ':''}clic en una fila para ver solo ese periodo</span></div>
+    <div class="pvctl"><span>Agrupar por</span><div class="seg">${seg}</div></div>
+    ${keys.length?`<div class="twrap pscroll"><table><thead><tr><th>Periodo</th><th class="num">Ventas $</th><th class="num">N.º</th><th class="num">Ticket</th><th class="num">vs anterior</th><th class="num">% del total</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`:'<p style="color:var(--ink3);font-size:12px">Sin datos en el periodo y filtros actuales.</p>'}</div>`;
+}
+
 function dimSections(cid,cfg,from,to){
   const dims=DIMS[cfg.type];if(!dims)return{main:'',more:''};
   const base=baseRows(cfg,from,to);
@@ -1221,9 +1350,12 @@ function dimSections(cid,cfg,from,to){
 }
 function filterBar(cid,cfg){
   const dims=DIMS[cfg.type];if(!dims)return'';
-  const f=fltOf(cid);const chips=[];
-  dims.forEach(d=>(f[d.k]||[]).forEach(v=>chips.push(`<span class="fchip"><b>${d.l}:</b> ${esc(v)}<button title="Quitar filtro" onclick="clrFlt('${cid}','${d.k}',${JSON.stringify(v).replace(/"/g,'&quot;')})">×</button></span>`)));
-  return`<div class="fbar"><span class="fttl">Filtros</span>${chips.length?chips.join('')+`<button class="fclr" onclick="clrFlt('${cid}')">Limpiar todo</button>`:'<span class="fhint">Haz clic en cualquier barra (ciudad, forma de pago, canal…) y todo este cliente se recalcula. Puedes combinar varios filtros.</span>'}</div>`;
+  const f=fltOf(cid),fx=ST.fx[cid]||{};const grp=[];
+  dims.forEach(d=>{
+    const a=f[d.k];if(!a||!a.length)return;const ex=!!fx[d.k];
+    grp.push(`<span class="fgrp"><b>${d.l}</b><button class="fmode ${ex?'ex':''}" title="Cambiar entre incluir y excluir" onclick="togFx('${cid}','${d.k}')">${ex?'excluir':'solo'}</button>${a.map(v=>`<span class="fval">${esc(v)}<button title="Quitar" onclick="clrFlt('${cid}','${d.k}',${JSON.stringify(v).replace(/"/g,'&quot;')})">×</button></span>`).join('')}</span>`);
+  });
+  return`<div class="fbar"><span class="fttl">Filtros</span>${grp.length?grp.join('')+`<button class="fclr" onclick="clrFlt('${cid}')">Limpiar todo</button>`:'<span class="fhint">Elige qué ver: haz clic en las barras (ciudad, forma de pago, canal…), combina varias y cámbialas a «excluir» si quieres ver todo menos eso. El periodo se cambia arriba o desde «Detalle por periodo».</span>'}</div>`;
 }
 
 // ── Tabla de detalle: búsqueda, orden, paginación y exportación ──
