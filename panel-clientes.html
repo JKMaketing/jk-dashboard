@@ -183,6 +183,35 @@ tr:hover td{background:var(--card2);}
 .mini i{display:block;height:100%;border-radius:3px;}
 .cnote{font-size:11px;color:var(--ink3);margin-top:10px;line-height:1.5;}
 
+/* ── Filtros y detalle ── */
+.fbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;}
+.fbar .fttl{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--ink2);}
+.fbar .fhint{font-size:12px;color:var(--ink2);}
+.fchip{display:inline-flex;gap:6px;align-items:center;background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:3px 5px 3px 10px;font-size:12px;font-weight:600;}
+.fchip b{color:var(--ink2);font-weight:600;}
+.fchip button{width:18px;height:18px;border-radius:50%;line-height:1;font-size:13px;color:var(--ink2);}
+.fchip button:hover{background:var(--border);color:var(--ink);}
+.fclr{margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;border:1px solid var(--border);border-radius:6px;color:var(--ink2);}
+.fclr:hover{background:var(--card2);color:var(--ink);}
+.brow.clk{cursor:pointer;padding:5px 7px;margin:0 -7px 3px;border-radius:7px;border:1px solid transparent;transition:background var(--t),opacity var(--t);}
+.brow.clk:hover{background:var(--card2);}
+.brow.sel{background:var(--card2);border-color:var(--cc);}
+.brow.dim{opacity:.5;}
+.bpct{color:var(--ink3);font-weight:500;}
+.morebtn{margin-top:6px;font-size:11px;font-weight:600;color:var(--ink2);padding:3px 8px;border:1px solid var(--border);border-radius:6px;}
+.morebtn:hover{background:var(--card2);color:var(--ink);}
+.dmore{margin-bottom:12px;}
+.dmore>summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--ink2);padding:8px 2px;list-style:none;}
+.dmore>summary::before{content:'▸ ';}
+.dmore[open]>summary::before{content:'▾ ';}
+.tctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;}
+.tsearch{flex:1;min-width:180px;max-width:340px;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;outline:none;color:var(--ink);}
+.tsearch:focus{border-color:#6366f1;}
+th.srt{cursor:pointer;user-select:none;}
+th.srt:hover{color:var(--ink);}
+th.num,td.num{text-align:right;}
+.tcnt{font-size:11px;color:var(--ink2);}
+
 /* ── Responsive ── */
 @media(max-width:640px){
   .dgrid{grid-template-columns:1fr;}
@@ -349,7 +378,9 @@ function parseMueRow(r){
   const iso=toISO(r[0]);if(!iso)return null;
   const isVenta=/^\s*s/i.test(r[4]||'')||r[4]==='1';
   // cols: [0]fecha [1]vendedor [2]sede [3]origen [4]venta [5]nPedido [6]producto [7]cedula ... [13]totalVenta [14]saldoPagado [15]saldoCobrar
-  return{fecha:iso,vendedor:(r[1]||'').trim().toUpperCase(),sede:normSede(r[2]),origen:(r[3]||'').trim().toUpperCase(),isVenta,producto:(r[6]||'').trim().toUpperCase(),total:pm(r[13]),recaudado:pm(r[14])};
+  const total=pm(r[13]),recaudado=pm(r[14]);
+  return{fecha:iso,vendedor:(r[1]||'').trim().toUpperCase(),sede:normSede(r[2]),origen:(r[3]||'').trim().toUpperCase(),isVenta,producto:(r[6]||'').trim().toUpperCase(),total,recaudado,
+    ciudad:(r[11]||'').trim().toUpperCase()||'—',formaPago:(r[12]||'').trim().toUpperCase()||'—',cobro:total-recaudado>0?'Con saldo por cobrar':'Pagado completo'};
 }
 
 function parseLiliRow(r){
@@ -359,7 +390,7 @@ function parseLiliRow(r){
   if(yy<2025||yy>yNow)iso=yNow+iso.slice(4);
   const total=pm(r[6]);if(!total)return null; // [6] = Precio venta
   const valida=(r[24]||'').trim()==='1'; // [24] = Venta válida (22 = Mes, 23 = Semana)
-  return{fecha:iso,cliente:(r[1]||'').trim(),ciudad:(r[2]||'').trim().toUpperCase(),total,metodoPago:(r[7]||'').trim()||'Otro',canal:(r[8]||'').trim()||'Otro',tipo:(r[9]||'').trim()||'Otro',referencia:(r[11]||'').trim()||'—',estado:(r[17]||'').trim()||'Sin estado',asesor:(r[18]||'').trim()||'Sin asesor',valida};
+  return{fecha:iso,cliente:(r[1]||'').trim(),ciudad:(r[2]||'').trim().toUpperCase(),total,metodoPago:(r[7]||'').trim()||'Otro',canal:(r[8]||'').trim()||'Otro',tipo:(r[9]||'').trim()||'Otro',referencia:(r[11]||'').trim()||'—',talla:(r[5]||'').trim()||'—',proveedor:(r[10]||'').trim().toUpperCase()||'—',transportadora:(r[14]||'').trim().toUpperCase()||'—',estado:(r[17]||'').trim()||'Sin estado',asesor:(r[18]||'').trim()||'Sin asesor',valida};
 }
 
 function parseLiliTracking(content){
@@ -443,10 +474,12 @@ async function fetchMueblesRows(){
 }
 function toRonalRow(c){
   return[toISO(c[0]),(c[1]||'').trim().toUpperCase(),normSede(c[2]),(c[3]||'').trim().toUpperCase(),
-    /^\s*s/i.test(c[4]||'')||c[4]==='1'?1:0,(c[6]||'').trim().toUpperCase(),pm(c[13]),pm(c[14])];
+    /^\s*s/i.test(c[4]||'')||c[4]==='1'?1:0,(c[6]||'').trim().toUpperCase(),pm(c[13]),pm(c[14]),
+    (c[11]||'').trim().toUpperCase()||'—',(c[12]||'').trim().toUpperCase()||'—'];
 }
 function getRonalRows(data){
-  return(data||[]).map(r=>({fecha:r[0],vendedor:r[1],sede:r[2],origen:r[3],isVenta:r[4]===1,producto:r[5],total:r[6],recaudado:r[7]}));
+  return(data||[]).map(r=>({fecha:r[0],vendedor:r[1],sede:r[2],origen:r[3],isVenta:r[4]===1,producto:r[5],total:r[6],recaudado:r[7],
+    ciudad:r[8]||'—',formaPago:r[9]||'—',cobro:r[6]-r[7]>0?'Con saldo por cobrar':'Pagado completo'}));
 }
 
 async function fetchLili(){
@@ -544,6 +577,58 @@ function prevRange(from,to){
   return{from:addDays(from,-n),to:addDays(from,-1)};
 }
 
+// ── Dimensiones filtrables por tipo de cliente ──
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DIMS={
+  muebles:[
+    {k:'ciudad',l:'Ciudad del cliente',get:r=>r.ciudad||'—'},
+    {k:'formaPago',l:'Forma de pago',get:r=>r.formaPago||'—'},
+    {k:'origen',l:'Origen del cliente',get:r=>r.origen||'—'},
+    {k:'producto',l:'Producto',get:r=>r.producto||'—'},
+    {k:'vendedor',l:'Vendedor',get:r=>r.vendedor||'—'},
+    {k:'cobro',l:'Estado de cobro',get:r=>r.cobro||'—'},
+  ],
+  lili:[
+    {k:'ciudad',l:'Ciudad',get:r=>r.ciudad||'—'},
+    {k:'metodoPago',l:'Método de pago',get:r=>r.metodoPago||'—'},
+    {k:'canal',l:'Canal de venta',get:r=>r.canal||'—'},
+    {k:'tipo',l:'Tipo de producto',get:r=>r.tipo||'—'},
+    {k:'estado',l:'Estado del pedido',get:r=>r.estado||'—'},
+    {k:'asesor',l:'Asesor',get:r=>r.asesor||'—'},
+    {k:'referencia',l:'Referencia',get:r=>r.referencia||'—'},
+    {k:'proveedor',l:'Proveedor',get:r=>r.proveedor||'—'},
+    {k:'transportadora',l:'Transportadora',get:r=>r.transportadora||'—'},
+    {k:'talla',l:'Talla',get:r=>r.talla||'—'},
+  ],
+  stetic:[
+    {k:'servicio',l:'Servicio',get:r=>r.servicio||'—'},
+    {k:'asistio',l:'Asistencia',get:r=>r.asistio||'Sin dato'},
+  ],
+};
+const DIM_MAIN={muebles:6,lili:4,stetic:2};
+const DIM_VAL={muebles:r=>r.total,lili:r=>r.total,stetic:r=>r.valorAgendado};
+const DIM_UNIT={muebles:'v.',lili:'v.',stetic:'ag.'};
+ST.flt={};ST.exp={};ST.tbl={};ST._dim={};ST._rows={};
+function fltOf(cid){return ST.flt[cid]||{};}
+function hasFlt(cid){return Object.values(fltOf(cid)).some(a=>a&&a.length);}
+function baseRows(cfg,from,to){
+  if(cfg.type==='muebles'){
+    const src=(cfg.id==='elrey'&&ST.raw.ronal&&ST.raw.ronal.length)?getRonalRows(ST.raw.ronal):ST.raw[cfg.sheet];
+    return filterRows(src,from,to).filter(r=>r.sede===cfg.sede&&r.isVenta);
+  }
+  if(cfg.type==='lili')return filterRows(ST.raw.lili,from,to).filter(r=>r.total>0);
+  if(cfg.type==='stetic')return filterRows(ST.raw.stetic,from,to);
+  return[];
+}
+function applyFlt(rows,cfg,skip){
+  const f=fltOf(cfg.id);let out=rows;
+  (DIMS[cfg.type]||[]).forEach(d=>{
+    if(d.k===skip)return;const a=f[d.k];
+    if(a&&a.length){const set=new Set(a);out=out.filter(r=>set.has(d.get(r)));}
+  });
+  return out;
+}
+
 function filterRows(rows,from,to){
   if(!rows)return[];
   return rows.filter(r=>r.fecha>=from&&r.fecha<=to);
@@ -608,7 +693,7 @@ function aggLili(rows,trackingRows,from,to){
   };
 }
 
-function aggStetic(rows){
+function aggStetic(rows,chatRows){
   const agendadas=rows.filter(r=>r.servicio);
   const asistidas=rows.filter(r=>/sí/i.test(r.asistio));
   const noShow=rows.filter(r=>/no/i.test(r.asistio)&&r.servicio).length;
@@ -616,7 +701,7 @@ function aggStetic(rows){
   const n=asistidas.length;
   const posiblesGanancias=agendadas.reduce((s,r)=>s+r.valorAgendado,0);
   const seenC=new Set();let totalChats=0;
-  rows.forEach(r=>{if(r.chats>0&&!seenC.has(r.fecha)){totalChats+=r.chats;seenC.add(r.fecha);}});
+  (chatRows||rows).forEach(r=>{if(r.chats>0&&!seenC.has(r.fecha)){totalChats+=r.chats;seenC.add(r.fecha);}});
   const convAgenda=agendadas.length>0?n/agendadas.length:null;
   const convContacto=totalChats>0?agendadas.length/totalChats:null;
   return{
@@ -650,14 +735,12 @@ function aggEnsifera(data,from,to){
 
 function clientAgg(cfg,from,to){
   if(cfg.type==='ensifera')return aggEnsifera(ST.raw.ensifera,from,to);
-  // El Rey: prefer data from ronal dashboard (same-origin localStorage + live fetch)
-  if(cfg.id==='elrey'&&ST.raw.ronal&&ST.raw.ronal.length){
-    return aggMuebles(filterRows(getRonalRows(ST.raw.ronal),from,to),'CERRITOS');
-  }
-  const rows=filterRows(ST.raw[cfg.sheet],from,to);
-  if(cfg.type==='muebles')return aggMuebles(rows,cfg.sede);
-  if(cfg.type==='lili')return aggLili(rows,ST.raw.liliTracking,from,to);
-  if(cfg.type==='stetic')return aggStetic(rows);
+  // Los filtros del detalle solo afectan la vista de ese cliente (el Home nunca se filtra)
+  const fl=ST.view===cfg.id&&hasFlt(cfg.id);
+  let rows=baseRows(cfg,from,to);
+  if(cfg.type==='muebles'){if(fl)rows=applyFlt(rows,cfg);return aggMuebles(rows,cfg.sede);}
+  if(cfg.type==='lili'){if(fl)rows=applyFlt(rows,cfg);return aggLili(rows,fl?null:ST.raw.liliTracking,from,to);}
+  if(cfg.type==='stetic'){const all=rows;if(fl)rows=applyFlt(rows.filter(r=>r.servicio),cfg);return aggStetic(rows,all);}
   return{total:0,n:0,ticket:0};
 }
 
@@ -924,8 +1007,9 @@ function renderDetail(cid){
   if(cfg.type==='muebles'){pauta=(agg.byOrigen||[]).filter(x=>x.name.startsWith('PAUTA')).reduce((s,x)=>s+x.val,0);}
   else if(isEnsifera){pauta=agg.total||0;}
   else{pauta=agg.total||0;}
-  const roas=isEnsifera&&agg.roas!=null?agg.roas:calcRoas(pauta,inv);
-  const cpv=inv&&agg.n?inv/agg.n:null;
+  const fl=hasFlt(cid);
+  const roas=fl?null:(isEnsifera&&agg.roas!=null?agg.roas:calcRoas(pauta,inv));
+  const cpv=!fl&&inv&&agg.n?inv/agg.n:null;
   const roasColor=roas?roas>=3?'var(--green)':roas>=1.5?'var(--gold)':'var(--red)':'var(--ink2)';
 
   // Month tabs (last 6) — not applicable for Ensifera
@@ -937,13 +1021,12 @@ function renderDetail(cid){
   const prj=projection(agg.total||0,from,to);
 
   // Type-specific sections
+  const dimsH=dimSections(cid,cfg,from,to);
   let specific='';
   if(cfg.type==='muebles'){
     const recP=agg.total>0?((agg.recaudado/agg.total)*100).toFixed(0):0;
     specific=`<div class="dgrid">
-      <div class="sec"><div class="sec-ttl">Por origen</div>${bars(agg.byOrigen,cfg.cc,6,true)}</div>
-      <div class="sec"><div class="sec-ttl">Top productos</div>${bars(agg.byProd,cfg.cc,8)}</div>
-      <div class="sec"><div class="sec-ttl">Por vendedor</div>${bars(agg.byVend,cfg.cc,8,true)}</div>
+      ${dimsH.main}
       <div class="sec"><div class="sec-ttl">Cobro <span>saldo y recaudo</span></div>
         <div style="display:flex;gap:20px;margin-bottom:12px">
           <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Recaudado</div><div style="font-size:20px;font-weight:800;color:var(--green)">${fmtF(agg.recaudado||0)}</div></div>
@@ -957,10 +1040,7 @@ function renderDetail(cid){
     </div>`;
   } else if(cfg.type==='lili'){
     specific=`<div class="dgrid">
-      <div class="sec"><div class="sec-ttl">Por canal</div>${bars(agg.byCanal,cfg.cc,6,true)}</div>
-      <div class="sec"><div class="sec-ttl">Top ciudades</div>${bars(agg.byCiudad,cfg.cc,8)}</div>
-      <div class="sec"><div class="sec-ttl">Método de pago</div>${bars(agg.byMetodo,cfg.cc,6)}</div>
-      <div class="sec"><div class="sec-ttl">Tipo de producto</div>${bars(agg.byTipo,cfg.cc,8)}</div>
+      ${dimsH.main}
     </div>`;
   } else if(cfg.type==='stetic'){
     const sCA=agg.convAgenda!=null?(agg.convAgenda*100).toFixed(0)+'%':'—';
@@ -977,7 +1057,7 @@ function renderDetail(cid){
           <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);margin-bottom:3px">Ganancia real</div><div style="font-size:18px;font-weight:800;color:var(--green)">${fmtF(agg.total||0)}</div><div style="font-size:11px;color:var(--ink2)">No shows: ${agg.noShow||0}</div></div>
         </div>
       </div>
-      <div class="sec"><div class="sec-ttl">Servicios <span>por valor agendado</span></div>${bars(agg.byServicio,cfg.cc,8,true)}</div>
+      ${dimsH.main}
     </div>`;
   } else if(cfg.type==='ensifera'){
     const camps=agg.campaigns||[];
@@ -1001,35 +1081,7 @@ function renderDetail(cid){
     </div>`;
   }
 
-  // Table
-  let tbl='<p style="color:var(--ink3);font-size:13px">Sin datos en el periodo.</p>';
-  if(agg.rows&&agg.rows.length){
-    const rr=[...agg.rows].sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,50);
-    if(cfg.type==='muebles'){
-      tbl=`<div class="twrap"><table>
-        <thead><tr><th>Fecha</th><th>Producto</th><th>Origen</th><th>Vendedor</th><th>Total</th><th>Recaudado</th></tr></thead>
-        <tbody>${rr.map(r=>`<tr><td>${r.fecha.slice(5).replace('-','/')}</td><td>${r.producto}</td>
-          <td><span class="chip" style="background:var(--card2)">${r.origen}</span></td>
-          <td>${r.vendedor}</td><td>${fmtF(r.total)}</td>
-          <td style="color:var(--green)">${fmtF(r.recaudado)}</td></tr>`).join('')}</tbody>
-      </table></div>`;
-    } else if(cfg.type==='lili'){
-      tbl=`<div class="twrap"><table>
-        <thead><tr><th>Fecha</th><th>Cliente</th><th>Ciudad</th><th>Canal</th><th>Tipo</th><th>Estado</th><th>Total</th></tr></thead>
-        <tbody>${rr.map(r=>`<tr><td>${r.fecha.slice(5).replace('-','/')}</td><td>${r.cliente||'—'}</td><td>${r.ciudad||'—'}</td>
-          <td>${r.canal||'—'}</td><td>${r.tipo||'—'}</td>
-          <td><span class="chip" style="background:${r.estado==='Entregada'||r.estado==='entregada'?'#3ecf8e22':'var(--card2)'};">${r.estado}</span></td>
-          <td>${fmtF(r.total)}</td></tr>`).join('')}</tbody>
-      </table></div>`;
-    } else if(cfg.type==='stetic'){
-      tbl=`<div class="twrap"><table>
-        <thead><tr><th>Fecha</th><th>Cliente</th><th>Servicio</th><th>Asistió</th><th>V. Agendado</th><th>V. Recaudado</th></tr></thead>
-        <tbody>${rr.map(r=>`<tr><td>${r.fecha.slice(5).replace('-','/')}</td><td>${r.cliente||'—'}</td><td>${r.servicio||'—'}</td>
-          <td><span class="chip" style="background:${/sí/i.test(r.asistio)?'#3ecf8e22':/no/i.test(r.asistio)?'#f5656522':'var(--card2)'};">${r.asistio||'—'}</span></td>
-          <td>${fmtF(r.valorAgendado)}</td><td style="color:${/sí/i.test(r.asistio)?'var(--green)':'var(--ink3)'}">${r.valorRecaudado?fmtF(r.valorRecaudado):'—'}</td></tr>`).join('')}</tbody>
-      </table></div>`;
-    }
-  }
+  ST._rows[cid]=agg.rows||[];
 
   return`<div class="dhdr">
     <button class="backbtn" onclick="goHome()">← Panel</button>
@@ -1052,7 +1104,7 @@ function renderDetail(cid){
     ${cfg.type==='muebles'?`<div class="ktile"><div class="kt-lbl">Recaudado</div><div class="kt-val grn">${fmt(agg.recaudado||0)}</div>
       <div class="kt-sub" style="color:var(--gold)">Saldo: ${fmt(agg.saldo||0)}</div></div>`:''}
     <div class="ktile"><div class="kt-lbl">ROAS</div><div class="kt-val" style="color:${roasColor}">${roas?roas.toFixed(2)+'×':'—'}</div>
-      <div class="kt-sub">${inv?'Inv. '+fmtF(inv):'Sin inversión'}</div></div>
+      <div class="kt-sub">${fl?'No aplica con filtros':(inv?'Inv. '+fmtF(inv):'Sin inversión')}</div></div>
     <div class="ktile"><div class="kt-lbl">Proy. fin de mes</div><div class="kt-val gld">${fmt(prj.monthEnd)}</div>
       <div class="kt-sub">Prom. ${fmt(prj.avg)}/día</div></div>
   </div>
@@ -1069,7 +1121,9 @@ function renderDetail(cid){
     <div class="pitem"><div class="pi-lbl">Prom. diario</div><div class="pi-val">${fmt(prj.avg)}</div></div>
   </div>
 
+  ${filterBar(cid,cfg)}
   ${specific}
+  ${dimsH.more}
 
   <div class="sec" style="margin-bottom:12px">
     ${isEnsifera?`
@@ -1108,14 +1162,121 @@ function renderDetail(cid){
   </div>
 
   ${isEnsifera?'':`<div class="sec">
-    <div class="sec-ttl">Detalle de pedidos <span>últimos 50</span></div>
-    ${tbl}
+    <div class="sec-ttl">Detalle de ${cfg.type==='stetic'?'agendamientos':'pedidos'} <span id="tblcnt">${tblCount(cid)}</span></div>
+    <div class="tctl">
+      <input class="tsearch" type="search" placeholder="Buscar en el detalle (cliente, ciudad, producto…)" value="${esc(tblState(cid).q)}" oninput="tblQ('${cid}',this.value)">
+      <button class="cbtn" onclick="exportCSV('${cid}')" title="Descarga lo que ves, con filtros y búsqueda aplicados">Exportar CSV</button>
+    </div>
+    <div id="tblbody">${tblBody(cid)}</div>
   </div>`}`;
 }
 
 // ============================================================
 // NAVIGATION
 // ============================================================
+// ── Filtros: acciones ──
+function togFlt(cid,k,i){
+  const v=(ST._dim[cid+'|'+k]||[])[i];if(v==null)return;
+  const f=ST.flt[cid]=ST.flt[cid]||{};const a=f[k]=f[k]||[];
+  const ix=a.indexOf(v);if(ix>=0)a.splice(ix,1);else a.push(v);
+  if(!a.length)delete f[k];
+  ST.tbl[cid]=Object.assign(ST.tbl[cid]||{},{lim:50});
+  renderCurrent();
+}
+function clrFlt(cid,k,v){
+  if(k==null){ST.flt[cid]={};}
+  else if(v==null){delete (ST.flt[cid]||{})[k];}
+  else{const a=(ST.flt[cid]||{})[k]||[];const ix=a.indexOf(v);if(ix>=0)a.splice(ix,1);if(!a.length)delete ST.flt[cid][k];}
+  renderCurrent();
+}
+function togExp(key){ST.exp[key]=!ST.exp[key];renderCurrent();}
+
+function dimSection(cid,cfg,dim,base){
+  const rows=applyFlt(cfg.type==='stetic'?base.filter(r=>r.servicio):base,cfg,dim.k);
+  let items=groupBy(rows,dim.get,DIM_VAL[cfg.type]);
+  const sel=new Set(fltOf(cid)[dim.k]||[]);
+  sel.forEach(v=>{if(!items.find(x=>x.name===v))items.push({name:v,val:0,count:0});});
+  const key=cid+'|'+dim.k;
+  ST._dim[key]=items.map(x=>x.name);
+  const tot=items.reduce((s,x)=>s+x.val,0)||1;const mx=Math.max(...items.map(x=>x.val),1);
+  const open=!!ST.exp[key];const LIM=8;
+  const shown=items.map((x,i)=>({x,i})).filter(({x,i})=>open||i<LIM||sel.has(x.name));
+  const rowsH=shown.map(({x,i})=>{
+    const on=sel.has(x.name);const dim_=sel.size&&!on;
+    return`<div class="brow clk ${on?'sel':''} ${dim_?'dim':''}" style="--cc:${cfg.cc}" onclick="togFlt('${cid}','${dim.k}',${i})" title="Clic para filtrar por ${esc(x.name)}">
+      <div class="bmeta"><span class="bname">${esc(x.name)}</span>
+      <span class="bval">${fmtF(x.val)} · ${x.count} ${DIM_UNIT[cfg.type]} <span class="bpct">${(x.val/tot*100).toFixed(0)}%</span></span></div>
+      <div class="btrack"><div class="bfill" style="width:${(x.val/mx*100).toFixed(1)}%;background:${cfg.cc}"></div></div></div>`;
+  }).join('');
+  const more=items.length>LIM?`<button class="morebtn" onclick="togExp('${key}')">${open?'Ver menos':'Ver todas ('+items.length+')'}</button>`:'';
+  return`<div class="sec"><div class="sec-ttl">${dim.l} <span>${items.length} · clic para filtrar</span></div>${rowsH||'<p style="color:var(--ink3);font-size:12px">Sin datos</p>'}${more}</div>`;
+}
+function dimSections(cid,cfg,from,to){
+  const dims=DIMS[cfg.type];if(!dims)return{main:'',more:''};
+  const base=baseRows(cfg,from,to);
+  const all=dims.map(d=>dimSection(cid,cfg,d,base));
+  const n=DIM_MAIN[cfg.type]||dims.length;
+  return{main:all.slice(0,n).join(''),
+    more:all.length>n?`<details class="dmore" ${dims.slice(n).some(d=>(fltOf(cid)[d.k]||[]).length)?'open':''}><summary>Más cortes de datos (${all.length-n})</summary><div class="dgrid">${all.slice(n).join('')}</div></details>`:''};
+}
+function filterBar(cid,cfg){
+  const dims=DIMS[cfg.type];if(!dims)return'';
+  const f=fltOf(cid);const chips=[];
+  dims.forEach(d=>(f[d.k]||[]).forEach(v=>chips.push(`<span class="fchip"><b>${d.l}:</b> ${esc(v)}<button title="Quitar filtro" onclick="clrFlt('${cid}','${d.k}',${JSON.stringify(v).replace(/"/g,'&quot;')})">×</button></span>`)));
+  return`<div class="fbar"><span class="fttl">Filtros</span>${chips.length?chips.join('')+`<button class="fclr" onclick="clrFlt('${cid}')">Limpiar todo</button>`:'<span class="fhint">Haz clic en cualquier barra (ciudad, forma de pago, canal…) y todo este cliente se recalcula. Puedes combinar varios filtros.</span>'}</div>`;
+}
+
+// ── Tabla de detalle: búsqueda, orden, paginación y exportación ──
+const fdate=f=>f?`${f.slice(8)}/${f.slice(5,7)}/${f.slice(2,4)}`:'—';
+const TCOLS={
+  muebles:[{k:'fecha',l:'Fecha',get:r=>r.fecha,show:r=>fdate(r.fecha)},{k:'producto',l:'Producto',get:r=>r.producto},{k:'ciudad',l:'Ciudad',get:r=>r.ciudad},
+    {k:'formaPago',l:'Forma de pago',get:r=>r.formaPago},{k:'origen',l:'Origen',get:r=>r.origen},{k:'vendedor',l:'Vendedor',get:r=>r.vendedor},
+    {k:'total',l:'Total',get:r=>r.total,num:1,show:r=>fmtF(r.total)},{k:'recaudado',l:'Recaudado',get:r=>r.recaudado,num:1,show:r=>`<span style="color:var(--green)">${fmtF(r.recaudado)}</span>`,csv:r=>r.recaudado},
+    {k:'saldo',l:'Saldo',get:r=>r.total-r.recaudado,num:1,show:r=>r.total-r.recaudado>0?`<span style="color:var(--gold)">${fmtF(r.total-r.recaudado)}</span>`:'—',csv:r=>r.total-r.recaudado}],
+  lili:[{k:'fecha',l:'Fecha',get:r=>r.fecha,show:r=>fdate(r.fecha)},{k:'cliente',l:'Cliente',get:r=>r.cliente},{k:'ciudad',l:'Ciudad',get:r=>r.ciudad},
+    {k:'canal',l:'Canal',get:r=>r.canal},{k:'tipo',l:'Tipo',get:r=>r.tipo},{k:'metodoPago',l:'Método de pago',get:r=>r.metodoPago},
+    {k:'referencia',l:'Referencia',get:r=>r.referencia},{k:'asesor',l:'Asesor',get:r=>r.asesor},
+    {k:'estado',l:'Estado',get:r=>r.estado,show:r=>`<span class="chip" style="background:${/entregada/i.test(r.estado)?'#3ecf8e22':'var(--card2)'}">${esc(r.estado)}</span>`},
+    {k:'total',l:'Precio venta',get:r=>r.total,num:1,show:r=>fmtF(r.total)}],
+  stetic:[{k:'fecha',l:'Fecha',get:r=>r.fecha,show:r=>fdate(r.fecha)},{k:'cliente',l:'Cliente',get:r=>r.cliente},{k:'servicio',l:'Servicio',get:r=>r.servicio},
+    {k:'asistio',l:'Asistió',get:r=>r.asistio,show:r=>`<span class="chip" style="background:${/sí/i.test(r.asistio)?'#3ecf8e22':/no/i.test(r.asistio)?'#f5656522':'var(--card2)'}">${esc(r.asistio||'—')}</span>`},
+    {k:'valorAgendado',l:'V. agendado',get:r=>r.valorAgendado,num:1,show:r=>fmtF(r.valorAgendado)},
+    {k:'valorRecaudado',l:'V. recaudado',get:r=>r.valorRecaudado,num:1,show:r=>r.valorRecaudado?`<span style="color:var(--green)">${fmtF(r.valorRecaudado)}</span>`:'—',csv:r=>r.valorRecaudado}],
+};
+function tblState(cid){return ST.tbl[cid]=Object.assign({q:'',sort:'fecha',dir:-1,lim:50},ST.tbl[cid]||{});}
+function tblRows(cid){
+  const cfg=CLIENTS.find(c=>c.id===cid);const cols=TCOLS[cfg.type];const t=tblState(cid);
+  let rows=(ST._rows[cid]||[]).slice();
+  const q=t.q.trim().toLowerCase();
+  if(q)rows=rows.filter(r=>cols.some(c=>String(c.get(r)==null?'':c.get(r)).toLowerCase().includes(q)));
+  const col=cols.find(c=>c.k===t.sort)||cols[0];
+  rows.sort((a,b)=>{const x=col.get(a),y=col.get(b);return(col.num?(x-y):String(x).localeCompare(String(y),'es'))*t.dir||b.fecha.localeCompare(a.fecha);});
+  return{rows,cols,t};
+}
+function tblBody(cid){
+  const{rows,cols,t}=tblRows(cid);
+  if(!rows.length)return'<p style="color:var(--ink3);font-size:13px">Sin datos para ese periodo, filtros o búsqueda.</p>';
+  const head=cols.map(c=>`<th class="srt ${c.num?'num':''}" onclick="tblSort('${cid}','${c.k}')">${c.l}${t.sort===c.k?(t.dir<0?' ↓':' ↑'):''}</th>`).join('');
+  const body=rows.slice(0,t.lim).map(r=>`<tr>${cols.map(c=>`<td class="${c.num?'num':''}">${c.show?c.show(r):esc(c.get(r)||'—')}</td>`).join('')}</tr>`).join('');
+  const more=rows.length>t.lim?`<div style="text-align:center;margin-top:10px"><button class="morebtn" onclick="tblMore('${cid}')">Mostrar 50 más (${rows.length-t.lim} restantes)</button></div>`:'';
+  return`<div class="twrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${more}`;
+}
+function tblCount(cid){const{rows,t}=tblRows(cid);const all=(ST._rows[cid]||[]).length;return`${Math.min(t.lim,rows.length)} de ${rows.length}${rows.length!==all?' (filtrado de '+all+')':''}`;}
+function tblRefresh(cid){const b=$('tblbody');if(b)b.innerHTML=tblBody(cid);const c=$('tblcnt');if(c)c.textContent=tblCount(cid);}
+let _tq=null;
+function tblQ(cid,v){clearTimeout(_tq);_tq=setTimeout(()=>{const t=tblState(cid);t.q=v;t.lim=50;tblRefresh(cid);},180);}
+function tblSort(cid,k){const t=tblState(cid);if(t.sort===k)t.dir=-t.dir;else{t.sort=k;t.dir=k==='fecha'?-1:1;}tblRefresh(cid);}
+function tblMore(cid){tblState(cid).lim+=50;tblRefresh(cid);}
+function exportCSV(cid){
+  const cfg=CLIENTS.find(c=>c.id===cid);const{rows,cols}=tblRows(cid);
+  const q=v=>{let x=v==null?'':String(v);if(/^[=+@\t]/.test(x))x="'"+x;return'"'+x.replace(/"/g,'""')+'"';};
+  const lines=[cols.map(c=>q(c.l)).join(',')].concat(rows.map(r=>cols.map(c=>{const v=c.csv?c.csv(r):c.get(r);return typeof v==='number'?v:q(v);}).join(',')));
+  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`${cfg.name} ${cfg.sub} detalle ${getRange().from} a ${getRange().to}.csv`.replace(/\s+/g,'_');
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+}
+
 function drillDown(cid){ST.view=cid;renderCurrent();window.scrollTo(0,0);}
 function goHome(){ST.view='home';renderCurrent();}
 
